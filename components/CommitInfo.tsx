@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { Commit, AIAnalysis } from '../types';
-import { Icons, COLORS } from '../constants';
+import { Commit, AIAnalysis } from '../types.ts';
+import { Icons, COLORS } from '../constants.tsx';
 
 interface CommitInfoProps {
   commit: Commit | null;

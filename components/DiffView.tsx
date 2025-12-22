@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
-import { FileDiff, DiffLine } from '../types';
-import { DiffParser } from '../services/diffParser';
+import { FileDiff, DiffLine } from '../types.ts';
+import { DiffParser } from '../services/diffParser.ts';
 
 interface DiffViewProps {
   diffs: FileDiff[];

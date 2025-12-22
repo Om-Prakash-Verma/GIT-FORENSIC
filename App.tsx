@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Commit, BisectState, BisectStatus, AIAnalysis, RepositoryMetadata } from './types';
-import { GitService, BisectEngine } from './services/gitService';
-import { GeminiService } from './services/geminiService';
-import { Icons, COLORS } from './constants';
-import Timeline from './components/Timeline';
-import DiffView from './components/DiffView';
-import CommitInfo from './components/CommitInfo';
+import { Commit, BisectState, BisectStatus, AIAnalysis, RepositoryMetadata } from './types.ts';
+import { GitService, BisectEngine } from './services/gitService.ts';
+import { GeminiService } from './services/geminiService.ts';
+import { Icons, COLORS } from './constants.tsx';
+import Timeline from './components/Timeline.tsx';
+import DiffView from './components/DiffView.tsx';
+import CommitInfo from './components/CommitInfo.tsx';
 
 const STORAGE_KEY = 'git-forensics-state';
 
@@ -43,7 +43,6 @@ const App: React.FC = () => {
         setMetadata(metadata);
         setCommits(commits);
         setSelectedHash(selectedHash);
-        // Correcting Set serialization
         setBisect({
           ...bisect,
           eliminatedHashes: new Set(bisect.eliminatedHashes)
@@ -127,7 +126,7 @@ const App: React.FC = () => {
     };
 
     prepareCommit();
-  }, [selectedHash, metadata, gemini]);
+  }, [selectedHash, metadata, gemini, commits]);
 
   const startBisect = () => {
     if (!selectedHash || commits.length < 2) return;
@@ -251,7 +250,7 @@ const App: React.FC = () => {
                   type="text" 
                   value={repoPath}
                   onChange={(e) => setRepoPath(e.target.value)}
-                  placeholder="https://github.com/Om-Prakash-Verma/CrockeryHub.git"
+                  placeholder="https://github.com/facebook/react.git"
                   className="w-full bg-black/60 border border-slate-800/80 rounded-2xl px-6 py-5 text-sm text-white focus:outline-none focus:border-amber-500/50 focus:ring-8 focus:ring-amber-500/5 transition-all font-mono placeholder:text-slate-800"
                 />
               </div>
@@ -264,7 +263,7 @@ const App: React.FC = () => {
               {isPathLoading ? (
                 <>
                   <div className="w-5 h-5 border-3 border-black border-t-transparent rounded-full animate-spin"></div>
-                  Cloning / Synchronizing...
+                  Synchronizing...
                 </>
               ) : (
                 <>

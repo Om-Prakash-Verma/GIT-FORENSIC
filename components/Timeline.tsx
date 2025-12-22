@@ -1,8 +1,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { Commit, BisectStatus } from '../types';
-import { COLORS } from '../constants';
+import { Commit, BisectStatus } from '../types.ts';
+import { COLORS } from '../constants.tsx';
 
 interface TimelineProps {
   commits: Commit[];

@@ -1,5 +1,5 @@
 
-import { DiffHunk, DiffLine } from '../types';
+import { DiffHunk, DiffLine } from '../types.ts';
 
 export class DiffParser {
   static parsePatch(patch: string): DiffHunk[] {

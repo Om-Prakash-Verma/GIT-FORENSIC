@@ -26,7 +26,6 @@ const App: React.FC = () => {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('diff');
   
-  // Explicitly type the initial state to avoid Set<unknown> inference
   const [bisect, setBisect] = useState<BisectState & { remaining?: number; steps?: number }>({
     isActive: false,
     goodHash: null,
@@ -48,7 +47,6 @@ const App: React.FC = () => {
         setMetadata(parsed.metadata);
         setCommits(parsed.commits);
         setSelectedHash(parsed.selectedHash);
-        // Ensure Set is typed as Set<string> during reconstruction
         setBisect({
           ...parsed.bisect,
           eliminatedHashes: new Set<string>(parsed.bisect.eliminatedHashes)
@@ -96,7 +94,10 @@ const App: React.FC = () => {
 
   const handleExit = () => {
     if (window.confirm("Are you sure you want to close this project? Unsaved forensic marks will be lost.")) {
+      // Clear persistence
       localStorage.removeItem(STORAGE_KEY);
+      
+      // Reset all functional state
       setIsLoaded(false);
       setMetadata(null);
       setCommits([]);
@@ -113,10 +114,10 @@ const App: React.FC = () => {
       });
       setActiveFilePath(null);
       setRepoPath('');
+      setHydrationError(null);
     }
   };
 
-  // Effect to handle hydration (loading diffs) and clearing stale analysis
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
     
@@ -166,6 +167,7 @@ const App: React.FC = () => {
     try {
       const result = await gemini.analyzeCommit(commit);
       setAnalysis(result);
+      if (window.innerWidth < 1024) setMobileView('analysis');
     } catch (err) {
       console.error("Analysis failed", err);
     } finally {
@@ -206,14 +208,8 @@ const App: React.FC = () => {
     else if (midpoint) setSelectedHash(midpoint);
   };
 
-  const pushHistory = () => {
-    const { history, ...snapshot } = bisect;
-    return [...history, snapshot];
-  };
-
   const markGood = () => {
     if (!bisect.currentMidpoint) return;
-    // Explicitly type new Set as Set<string> to satisfy runBisectLogic signature
     const newEliminated = new Set<string>(bisect.eliminatedHashes);
     const goodIdx = commits.findIndex(c => c.hash === bisect.goodHash);
     const midIdx = commits.findIndex(c => c.hash === bisect.currentMidpoint);
@@ -224,14 +220,13 @@ const App: React.FC = () => {
     const next = { 
       goodHash: bisect.currentMidpoint, 
       eliminatedHashes: newEliminated,
-      history: pushHistory()
+      history: [...bisect.history, { ...bisect, history: [] }]
     };
     runBisectLogic(bisect.currentMidpoint!, bisect.badHash!, newEliminated, next);
   };
 
   const markBad = () => {
     if (!bisect.currentMidpoint) return;
-    // Explicitly type new Set as Set<string> to satisfy runBisectLogic signature
     const newEliminated = new Set<string>(bisect.eliminatedHashes);
     const badIdx = commits.findIndex(c => c.hash === bisect.badHash);
     const midIdx = commits.findIndex(c => c.hash === bisect.currentMidpoint);
@@ -242,7 +237,7 @@ const App: React.FC = () => {
     const next = { 
       badHash: bisect.currentMidpoint, 
       eliminatedHashes: newEliminated,
-      history: pushHistory()
+      history: [...bisect.history, { ...bisect, history: [] }]
     };
     runBisectLogic(bisect.goodHash!, bisect.currentMidpoint!, newEliminated, next);
   };
@@ -265,7 +260,7 @@ const App: React.FC = () => {
   if (!isLoaded) {
     return (
       <div className="min-h-screen w-screen bg-[#020617] flex flex-col items-center justify-center p-6 selection:bg-amber-500/20 relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent opacity-50" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent opacity-50 pointer-events-none" />
         <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in duration-1000 relative z-10">
           <div className="text-center">
             <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-amber-400 to-amber-600 rounded-[2rem] md:rounded-[2.5rem] flex items-center justify-center text-black font-black text-4xl md:text-5xl mx-auto mb-8 md:mb-10 shadow-[0_0_50px_rgba(251,191,36,0.15)] rotate-3 border-4 md:border-8 border-black/10 transition-transform cursor-default">
@@ -292,7 +287,7 @@ const App: React.FC = () => {
             <button 
               type="submit"
               disabled={isPathLoading || !repoPath}
-              className="w-full py-5 md:py-6 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-[0_20px_40px_rgba(251,191,36,0.1)] flex items-center justify-center gap-4"
+              className="w-full py-5 md:py-6 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-[0_20px_40px_rgba(251,191,36,0.1)] flex items-center justify-center gap-4 active:scale-95"
             >
               {isPathLoading ? (
                 <>
@@ -313,7 +308,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row h-screen w-screen bg-[#020617] text-slate-200 overflow-hidden font-sans selection:bg-amber-500/30 selection:text-amber-200">
-      {/* Sidebar - top on mobile, side on desktop */}
+      {/* Primary Sidebar / Top-bar on Mobile */}
       <aside className="w-full lg:w-20 border-b lg:border-r border-white/5 flex lg:flex-col items-center justify-between lg:justify-start py-4 lg:py-10 px-6 lg:px-0 gap-6 lg:gap-10 bg-black/40 backdrop-blur-3xl z-50 shrink-0">
         <div 
           className="w-10 h-10 lg:w-14 lg:h-14 rounded-xl lg:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black shadow-2xl cursor-pointer hover:rotate-6 active:scale-90 transition-all border-2 lg:border-4 border-black/5"
@@ -321,7 +316,7 @@ const App: React.FC = () => {
         >
           GT
         </div>
-        <div className="flex lg:flex-col gap-4 lg:gap-6">
+        <div className="flex lg:flex-col gap-4 lg:gap-8">
            <button className="p-3 lg:p-4 text-amber-500 bg-amber-500/5 border border-amber-500/10 rounded-xl lg:rounded-2xl hover:bg-amber-500/10 transition-all" title="History">
             <Icons.History />
           </button>
@@ -332,7 +327,7 @@ const App: React.FC = () => {
             <Icons.Search />
           </button>
           <button 
-            className="lg:hidden p-3 text-red-400 bg-red-500/5 border border-red-500/10 rounded-xl"
+            className="lg:hidden p-3 text-red-400 bg-red-500/5 border border-red-500/10 rounded-xl active:bg-red-500 active:text-white"
             onClick={handleExit}
             title="Close Project"
           >
@@ -342,14 +337,15 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-hidden">
+        {/* Responsive Header */}
         <header className="h-16 lg:h-24 border-b border-white/5 px-4 lg:px-12 flex items-center justify-between bg-black/20 backdrop-blur-2xl shrink-0">
           <div className="flex items-center gap-4 lg:gap-8 min-w-0">
-            <h1 className="text-lg lg:text-2xl font-black tracking-tight flex items-center gap-2 lg:gap-4 shrink-0">
-              GIT <span className="text-amber-500 italic">FORENSICS</span>
+            <h1 className="text-sm lg:text-2xl font-black tracking-tight flex items-center gap-2 lg:gap-4 shrink-0 uppercase">
+              Git <span className="text-amber-500 italic">Forensics</span>
             </h1>
             <div className="hidden md:block h-10 w-px bg-white/5" />
-            <div className="flex flex-col min-w-0">
-              <span className="hidden sm:inline text-[8px] lg:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5 lg:mb-1">Active Trace</span>
+            <div className="hidden sm:flex flex-col min-w-0">
+              <span className="text-[8px] lg:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5 lg:mb-1 truncate">Active Trace</span>
               <span className="px-2 lg:px-3 py-0.5 lg:py-1 bg-white/5 border border-white/10 text-[9px] lg:text-[11px] text-slate-300 font-mono rounded-lg max-w-[150px] lg:max-w-xs truncate">
                 {metadata?.path}
               </span>
@@ -359,13 +355,13 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2 lg:gap-6">
             {bisect.isActive && (
               <div className="flex items-center gap-1 lg:gap-3 p-1 lg:p-2 bg-black/60 rounded-xl lg:rounded-[1.5rem] border border-white/5 shadow-2xl">
-                <button onClick={markGood} className="px-3 lg:px-6 py-1.5 lg:py-2.5 bg-green-500/10 hover:bg-green-500 hover:text-black text-green-500 text-[8px] lg:text-[11px] font-black uppercase tracking-widest rounded-lg lg:rounded-xl transition-all">G</button>
-                <button onClick={markBad} className="px-3 lg:px-6 py-1.5 lg:py-2.5 bg-red-500/10 hover:bg-red-500 hover:text-black text-red-500 text-[8px] lg:text-[11px] font-black uppercase tracking-widest rounded-lg lg:rounded-xl transition-all">B</button>
+                <button onClick={markGood} className="px-3 lg:px-6 py-1.5 lg:py-2.5 bg-green-500/10 hover:bg-green-500 hover:text-black text-green-500 text-[8px] lg:text-[11px] font-black uppercase tracking-widest rounded-lg lg:rounded-xl transition-all">Good</button>
+                <button onClick={markBad} className="px-3 lg:px-6 py-1.5 lg:py-2.5 bg-red-500/10 hover:bg-red-500 hover:text-black text-red-500 text-[8px] lg:text-[11px] font-black uppercase tracking-widest rounded-lg lg:rounded-xl transition-all">Bad</button>
               </div>
             )}
             <button 
               onClick={handleExit}
-              className="hidden md:flex items-center gap-2 px-4 py-2 border border-white/5 bg-white/5 hover:bg-red-500/10 hover:border-red-500/40 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-400 rounded-xl transition-all"
+              className="hidden md:flex items-center gap-2 px-4 py-2.5 border border-white/5 bg-white/5 hover:bg-red-500/10 hover:border-red-500/40 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-400 rounded-xl transition-all active:scale-95"
             >
               <Icons.Close className="w-3.5 h-3.5" />
               Close Project
@@ -374,6 +370,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Timeline remains at the top but with responsive heights */}
           <Timeline 
             commits={commits} 
             selectedHash={selectedHash} 
@@ -382,33 +379,33 @@ const App: React.FC = () => {
             bisectRange={bisect.isActive ? { start: bisect.goodHash, end: bisect.badHash } : undefined}
           />
           
-          {/* Mobile Tab Switcher */}
-          <div className="lg:hidden flex border-b border-white/5 bg-black/30 shrink-0">
+          {/* Mobile Navigation Tabs */}
+          <nav className="lg:hidden flex border-b border-white/5 bg-black/30 shrink-0 h-12">
             <button 
               onClick={() => setMobileView('files')}
-              className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${mobileView === 'files' ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500'}`}
+              className={`flex-1 flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === 'files' ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Files
             </button>
             <button 
               onClick={() => setMobileView('diff')}
-              className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${mobileView === 'diff' ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500'}`}
+              className={`flex-1 flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === 'diff' ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Diff
             </button>
             <button 
               onClick={() => setMobileView('analysis')}
-              className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${mobileView === 'analysis' ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500'}`}
+              className={`flex-1 flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === 'analysis' ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              Analysis
+              Audit
             </button>
-          </div>
+          </nav>
 
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
              {/* File Explorer Panel */}
              <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:flex w-full lg:w-80 border-r border-white/5 bg-black/30 flex-col shrink-0 overflow-hidden`}>
                <div className="p-4 lg:p-8 border-b border-white/5 flex items-center justify-between shrink-0">
-                 <h3 className="text-[9px] lg:text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Changed Assets</h3>
+                 <h3 className="text-[9px] lg:text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Modified Assets</h3>
                  <span className="px-2 py-0.5 bg-white/10 rounded-md text-[9px] lg:text-[10px] font-mono text-slate-400">
                    {isHydrating ? '...' : currentCommit?.diffs.length}
                  </span>
@@ -417,14 +414,17 @@ const App: React.FC = () => {
                  {isHydrating ? (
                    <div className="p-10 text-center"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
                  ) : hydrationError ? (
-                   <div className="p-4 text-center text-red-400 text-[10px] font-bold uppercase">{hydrationError}</div>
+                   <div className="p-6 text-center">
+                     <p className="text-red-400 text-[10px] font-bold uppercase mb-2">Sync Error</p>
+                     <p className="text-slate-600 text-[9px] uppercase leading-tight">{hydrationError}</p>
+                   </div>
                  ) : (
                    currentCommit?.diffs.map((d, i) => (
                     <div 
                       key={i} 
                       onClick={() => { setActiveFilePath(d.path); if (window.innerWidth < 1024) setMobileView('diff'); }}
                       className={`flex items-center gap-3 lg:gap-4 text-[10px] lg:text-[11px] p-3 lg:p-4 rounded-xl lg:rounded-2xl cursor-pointer transition-all border ${
-                        activeFilePath === d.path ? 'bg-amber-500/5 border-amber-500/20 text-amber-500 font-bold' : 'border-transparent text-slate-500 hover:bg-white/5'
+                        activeFilePath === d.path ? 'bg-amber-500/5 border-amber-500/20 text-amber-500 font-bold' : 'border-transparent text-slate-500 hover:bg-white/5 hover:text-slate-300'
                       }`}
                     >
                       <div className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full shrink-0 ${d.changes === 'added' ? 'bg-green-500' : d.changes === 'removed' ? 'bg-red-500' : 'bg-blue-500'}`} />
@@ -436,12 +436,12 @@ const App: React.FC = () => {
              </div>
 
              {/* Diff View Panel */}
-             <div className={`${mobileView === 'diff' ? 'flex' : 'hidden'} lg:flex flex-1 overflow-hidden min-w-0`}>
+             <div className={`${mobileView === 'diff' ? 'flex' : 'hidden'} lg:flex flex-1 overflow-hidden min-w-0 bg-black/40`}>
                <DiffView diffs={currentCommit?.diffs || []} activeFilePath={activeFilePath} />
              </div>
 
              {/* Commit Info Panel */}
-             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[400px] flex-col shrink-0 h-full overflow-hidden`}>
+             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[400px] flex-col shrink-0 h-full overflow-hidden bg-[#020617]`}>
                <CommitInfo 
                  commit={currentCommit} 
                  analysis={analysis} 

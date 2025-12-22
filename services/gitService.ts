@@ -49,15 +49,15 @@ export class GitService {
     try {
       const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`);
       if (!metaResponse.ok) {
-        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded. Try again later.");
-        if (metaResponse.status === 404) throw new Error("Repository not found. Ensure the repository is Public.");
-        throw new Error(`Metadata fetch failed: ${metaResponse.statusText}`);
+        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded. Use a Public Repo or try later.");
+        if (metaResponse.status === 404) throw new Error("Repository not found (Check if it's private).");
+        throw new Error(`Sync Error: ${metaResponse.status}`);
       }
       const metaData = await metaResponse.json();
 
       const commitsResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits?per_page=100`);
       if (!commitsResponse.ok) {
-        throw new Error(`Failed to fetch history: ${commitsResponse.statusText}`);
+        throw new Error(`Failed to fetch history (Error ${commitsResponse.status})`);
       }
       const commitsData = await commitsResponse.json();
 
@@ -82,7 +82,7 @@ export class GitService {
         commits
       };
     } catch (err: any) {
-      throw new Error(err.message || "Unknown GitHub Sync Error");
+      throw new Error(err.message || "Unknown Network Error");
     }
   }
 
@@ -94,35 +94,39 @@ export class GitService {
     
     const repoPath = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
     
-    const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
-    if (!response.ok) {
-      if (response.status === 403) throw new Error("GitHub API Rate Limit reached while fetching diffs.");
-      throw new Error(`Details fetch failed: ${response.statusText}`);
-    }
-    const data = await response.json();
-
-    const diffs: FileDiff[] = data.files.map((file: any) => ({
-      path: file.filename,
-      changes: file.status === 'renamed' ? 'modified' : file.status,
-      oldContent: '', 
-      newContent: '',
-      patch: file.patch || "",
-      hunks: [],
-      stats: {
-        additions: file.additions,
-        deletions: file.deletions
+    try {
+      const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
+      if (!response.ok) {
+        if (response.status === 403) throw new Error("Rate Limit reached. Differential data unavailable.");
+        throw new Error(`Commit fetch failed (${response.status})`);
       }
-    }));
+      const data = await response.json();
 
-    return {
-      ...commit,
-      stats: {
-        insertions: data.stats.additions,
-        deletions: data.stats.deletions,
-        filesChanged: data.files.length
-      },
-      diffs
-    };
+      const diffs: FileDiff[] = data.files.map((file: any) => ({
+        path: file.filename,
+        changes: file.status === 'renamed' ? 'modified' : file.status,
+        oldContent: '', 
+        newContent: '',
+        patch: file.patch || "",
+        hunks: [],
+        stats: {
+          additions: file.additions,
+          deletions: file.deletions
+        }
+      }));
+
+      return {
+        ...commit,
+        stats: {
+          insertions: data.stats.additions,
+          deletions: data.stats.deletions,
+          filesChanged: data.files.length
+        },
+        diffs
+      };
+    } catch (err: any) {
+      throw err; // Propagate to UI for handling
+    }
   }
 
   private static generateRealisticHistory(): Commit[] {

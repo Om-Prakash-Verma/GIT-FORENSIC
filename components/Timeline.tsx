@@ -14,7 +14,6 @@ interface TimelineProps {
 
 const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bisectStatuses, bisectRange }) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const gRef = useRef<SVGGElement>(null);
 
   useEffect(() => {
     if (!svgRef.current || commits.length === 0) return;
@@ -22,23 +21,24 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
     const width = svgRef.current.clientWidth;
     const height = 150;
     const margin = { top: 45, right: 100, bottom: 45, left: 100 };
-    const innerWidth = Math.max(width, commits.length * 100) - margin.left - margin.right;
+    
+    // We want a fixed-width timeline that scrolls naturally
+    const nodeSpacing = 100;
+    const timelineWidth = Math.max(width, commits.length * nodeSpacing) - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
     const container = d3.select(svgRef.current);
     container.selectAll("*").remove();
 
-    const zoomG = container.append("g")
-      .attr("class", "zoom-container");
-
-    const svg = zoomG.append("g")
+    // Use a main group for all elements
+    const svg = container.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     const x = d3.scalePoint()
       .domain(commits.map(c => c.hash))
-      .range([0, innerWidth]);
+      .range([0, timelineWidth]);
 
-    // Draw active search area
+    // Draw active search area (Bisect Range)
     if (bisectRange?.start && bisectRange?.end) {
       const startX = x(bisectRange.start) || 0;
       const endX = x(bisectRange.end) || 0;
@@ -65,10 +65,10 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
         .attr("rx", 12);
     }
 
-    // Main backbone
+    // Main backbone line
     svg.append("line")
       .attr("x1", 0)
-      .attr("x2", innerWidth)
+      .attr("x2", timelineWidth)
       .attr("y1", innerHeight / 2)
       .attr("y2", innerHeight / 2)
       .attr("stroke", "#1e293b")
@@ -83,7 +83,7 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
       .style("cursor", "pointer")
       .on("click", (_, d) => onSelect(d.hash));
 
-    // Glow for selected
+    // Glow for selected commit
     commitGroup.filter(d => d.hash === selectedHash)
       .append("circle")
       .attr("r", 15)
@@ -112,36 +112,34 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
       .attr("fill", d => d.hash === selectedHash ? COLORS.gold : "#64748b")
       .attr("font-size", "9px")
       .attr("font-family", "Fira Code, monospace")
+      .attr("font-weight", d => d.hash === selectedHash ? "700" : "400")
       .text(d => d.hash.substring(0, 7));
 
-    // Zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 3])
-      .on("zoom", (event) => {
-        zoomG.attr("transform", event.transform);
-      });
-
-    container.call(zoom);
-
-    // Initial positioning to show the selected or last commit
+    // Auto-scroll logic: If a commit is selected, center it in the scrollable view
     if (selectedHash) {
       const selectedX = x(selectedHash) || 0;
-      const tx = width / 2 - selectedX - margin.left;
-      container.call(zoom.transform, d3.zoomIdentity.translate(tx, 0));
+      const scrollParent = svgRef.current?.parentElement;
+      if (scrollParent) {
+        const targetScroll = selectedX + margin.left - scrollParent.clientWidth / 2;
+        scrollParent.scrollTo({ left: targetScroll, behavior: 'smooth' });
+      }
     }
 
   }, [commits, selectedHash, onSelect, bisectStatuses, bisectRange]);
 
   return (
-    <div className="w-full h-[150px] bg-[#020617] border-b border-slate-800 relative group overflow-hidden">
+    <div className="w-full h-[150px] bg-[#020617] border-b border-slate-800 relative group overflow-x-auto overflow-y-hidden custom-scrollbar">
       <div className="absolute top-3 left-6 flex items-center gap-5 z-20 pointer-events-none">
         <div className="flex items-center gap-2">
            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Forensic Timeline</span>
         </div>
-        <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Scroll to Zoom • Drag to Pan</span>
       </div>
-      <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+      <svg 
+        ref={svgRef} 
+        className="h-full" 
+        style={{ width: commits.length > 0 ? Math.max(800, commits.length * 100 + 200) : '100%' }}
+      />
     </div>
   );
 };

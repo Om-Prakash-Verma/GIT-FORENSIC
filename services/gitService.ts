@@ -15,7 +15,7 @@ export class GitService {
       return this.fetchGitHubRepository(pathOrUrl);
     }
 
-    // Simulate local FS and network latency for a production-grade feel
+    // Simulate local FS and network latency
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     if (pathOrUrl.length < 3) {
@@ -47,38 +47,29 @@ export class GitService {
     const repoPath = `${owner}/${repo}`;
 
     try {
-      // 1. Fetch Repository Metadata
       const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`);
       if (!metaResponse.ok) {
-        if (metaResponse.status === 403) throw new Error("GitHub API rate limit exceeded. Unauthenticated requests are limited to 60/hr.");
-        if (metaResponse.status === 404) throw new Error("Repository not found. Ensure it is a public repository.");
+        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded (60 req/hr for unauthenticated IP). Try again later or use a local path.");
+        if (metaResponse.status === 404) throw new Error("Repository not found. Ensure the repository is Public.");
         throw new Error(`GitHub metadata fetch failed: ${metaResponse.statusText}`);
       }
       const metaData = await metaResponse.json();
 
-      // 2. Fetch Commits History
       const commitsResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits?per_page=100`);
       if (!commitsResponse.ok) {
-        if (commitsResponse.status === 403) throw new Error("GitHub API rate limit exceeded during commit fetch.");
         throw new Error(`Failed to fetch commit history: ${commitsResponse.statusText}`);
       }
       const commitsData = await commitsResponse.json();
 
-      const commits: Commit[] = await Promise.all(commitsData.map(async (c: any) => {
-        return {
-          hash: c.sha,
-          author: c.commit.author.name,
-          authorEmail: c.commit.author.email,
-          date: c.commit.author.date,
-          message: c.commit.message,
-          parents: c.parents.map((p: any) => p.sha),
-          stats: {
-            insertions: 0,
-            deletions: 0,
-            filesChanged: 0
-          },
-          diffs: []
-        };
+      const commits: Commit[] = commitsData.map((c: any) => ({
+        hash: c.sha,
+        author: c.commit.author.name,
+        authorEmail: c.commit.author.email,
+        date: c.commit.author.date,
+        message: c.commit.message,
+        parents: c.parents.map((p: any) => p.sha),
+        stats: { insertions: 0, deletions: 0, filesChanged: 0 },
+        diffs: []
       }));
 
       return {
@@ -91,16 +82,13 @@ export class GitService {
         commits
       };
     } catch (err: any) {
-      if (err.message.includes('Failed to fetch')) {
-        throw new Error("Network Error: Could not reach GitHub API. Check your connection or CORS settings.");
+      if (err.message === 'Failed to fetch') {
+        throw new Error("Connection Blocked: The browser failed to reach GitHub's API. This is usually due to network restrictions, strict CORS, or an ad-blocker.");
       }
       throw new Error(`GitHub Sync Error: ${err.message}`);
     }
   }
 
-  /**
-   * Hydrates a commit with real diff data from GitHub.
-   */
   static async hydrateCommitDiffs(repoUrl: string, commit: Commit): Promise<Commit> {
     if (!this.isGitHubUrl(repoUrl) || commit.diffs.length > 0) return commit;
 
@@ -111,7 +99,7 @@ export class GitService {
     
     try {
       const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
-      if (!response.ok) throw new Error(`Failed to fetch commit details: ${response.statusText}`);
+      if (!response.ok) throw new Error(`Details fetch failed: ${response.statusText}`);
       const data = await response.json();
 
       const diffs: FileDiff[] = data.files.map((file: any) => ({
@@ -182,9 +170,6 @@ export class GitService {
   }
 }
 
-/**
- * BisectEngine: Implements binary search logic for identifying the first "bad" commit.
- */
 export class BisectEngine {
   static calculateStep(
     commits: Commit[],
@@ -210,13 +195,7 @@ export class BisectEngine {
     }
 
     if (candidates.length <= 1) {
-      return {
-        midpoint: null,
-        isDone: true,
-        suspected: badHash,
-        remaining: 0,
-        estimatedSteps: 0
-      };
+      return { midpoint: null, isDone: true, suspected: badHash, remaining: 0, estimatedSteps: 0 };
     }
 
     const mid = Math.floor(candidates.length / 2);

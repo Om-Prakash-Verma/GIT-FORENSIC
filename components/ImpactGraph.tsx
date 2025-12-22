@@ -1,6 +1,16 @@
 
 import React, { useEffect, useRef } from 'react';
-import * as d3 from 'd3';
+// Fix: Import specific d3 functions and modules to resolve property missing errors
+import { 
+  select, 
+  zoom as d3Zoom, 
+  forceSimulation, 
+  forceLink, 
+  forceManyBody, 
+  forceCenter, 
+  forceCollide, 
+  drag as d3Drag 
+} from 'd3';
 import { ImpactData, ImpactNode, ImpactLink } from '../types.ts';
 import { COLORS } from '../constants.tsx';
 
@@ -18,13 +28,15 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
     const width = svgRef.current.clientWidth;
     const height = svgRef.current.clientHeight;
 
-    const svg = d3.select(svgRef.current);
+    // Fix: Using select directly instead of d3.select
+    const svg = select(svgRef.current);
     svg.selectAll("*").remove();
 
     const g = svg.append("g");
 
     // Add zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    // Fix: Using d3Zoom directly instead of d3.zoom
+    const zoom = d3Zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 4])
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
@@ -32,11 +44,12 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
 
     svg.call(zoom);
 
-    const simulation = d3.forceSimulation<ImpactNode>(data.nodes)
-      .force("link", d3.forceLink<ImpactNode, ImpactLink>(data.links).id(d => d.id).distance(120))
-      .force("charge", d3.forceManyBody().strength(-400))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(70));
+    // Fix: Using forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide directly instead of d3. prefixes
+    const simulation = forceSimulation<ImpactNode>(data.nodes)
+      .force("link", forceLink<ImpactNode, ImpactLink>(data.links).id(d => d.id).distance(120))
+      .force("charge", forceManyBody().strength(-400))
+      .force("center", forceCenter(width / 2, height / 2))
+      .force("collision", forceCollide().radius(70));
 
     // Arrowhead definition
     svg.append("defs").append("marker")
@@ -66,7 +79,8 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
       .selectAll("g")
       .data(data.nodes)
       .join("g")
-      .call(d3.drag<SVGGElement, ImpactNode>()
+      // Fix: Using d3Drag directly instead of d3.drag
+      .call(d3Drag<SVGGElement, ImpactNode>()
         .on("start", dragstarted)
         .on("drag", dragged)
         .on("end", dragended) as any);

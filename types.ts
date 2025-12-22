@@ -1,6 +1,6 @@
 
-// Fix: Added d3 import to provide access to SimulationNodeDatum and SimulationLinkDatum namespaces
-import * as d3 from 'd3';
+// Fix: Import types directly from d3 to avoid namespace resolution issues
+import { SimulationNodeDatum, SimulationLinkDatum } from 'd3';
 
 export type CommitCategory = 'logic' | 'refactor' | 'dependency' | 'style' | 'feat' | 'fix' | 'chore';
 
@@ -88,7 +88,8 @@ export interface BisectState {
 }
 
 // Impact Graph Types
-export interface ImpactNode extends d3.SimulationNodeDatum {
+// Fix: Removed d3. prefix from SimulationNodeDatum to resolve missing member error
+export interface ImpactNode extends SimulationNodeDatum {
   id: string;
   name: string;
   isModified: boolean;
@@ -96,7 +97,8 @@ export interface ImpactNode extends d3.SimulationNodeDatum {
   impactScore: number;
 }
 
-export interface ImpactLink extends d3.SimulationLinkDatum<ImpactNode> {
+// Fix: Removed d3. prefix from SimulationLinkDatum to resolve missing member error
+export interface ImpactLink extends SimulationLinkDatum<ImpactNode> {
   source: string | ImpactNode;
   target: string | ImpactNode;
   value: number;

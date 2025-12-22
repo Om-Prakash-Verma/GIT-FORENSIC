@@ -16,184 +16,167 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
   const currentCategory = analysis?.category || commit.category || 'logic';
 
   return (
-    <div className="w-full h-full border-l border-slate-800/60 bg-[#020617] flex flex-col overflow-y-auto custom-scrollbar">
-      <div className="p-6 lg:p-8 border-b border-slate-800/60 bg-gradient-to-b from-slate-900/20 to-transparent shrink-0">
+    <div className="w-full h-full flex flex-col bg-[#020617] overflow-y-auto custom-scrollbar relative">
+      <div className="sticky top-0 z-20 bg-slate-900/40 backdrop-blur-xl border-b border-white/5 p-6 lg:p-8 shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-[9px] font-black text-amber-500 uppercase tracking-widest">
+            <div className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-[8px] font-black text-amber-500 uppercase tracking-[0.2em]">
               Forensic Node
             </div>
-            <div className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[9px] font-black text-slate-400 uppercase tracking-widest">
-              Pattern: <span className="text-white italic">{currentCategory}</span>
+            <div className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[8px] font-black text-slate-500 uppercase tracking-widest">
+              ID: <span className="text-slate-300 font-mono">{commit.hash.substring(0, 8)}</span>
             </div>
           </div>
-          <span className="text-[9px] lg:text-[10px] font-mono text-slate-600 uppercase">{commit.hash.substring(0, 12)}</span>
+          <div className="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700">
+             {currentCategory}
+          </div>
         </div>
-        <h2 className="text-lg lg:text-xl font-bold text-white mb-4 line-clamp-3 leading-snug">
+        <h2 className="text-lg lg:text-xl font-bold text-white mb-6 leading-tight line-clamp-3">
           {commit.message}
         </h2>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-500 font-black shadow-inner">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-500 font-black text-lg shadow-inner ring-1 ring-white/5">
             {commit.author[0].toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-200 truncate">{commit.author}</p>
-            <p className="text-[9px] lg:text-[10px] text-slate-500 font-medium uppercase tracking-tighter">
-              {new Date(commit.date).toLocaleDateString()}
+            <p className="text-xs font-bold text-slate-100 truncate">{commit.author}</p>
+            <p className="text-[9px] text-slate-500 font-black uppercase tracking-tighter mt-0.5">
+              {new Date(commit.date).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="p-6 lg:p-8 space-y-8 lg:space-y-10 flex-1">
-        <div className="grid grid-cols-3 gap-2 lg:gap-3">
-          <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2 lg:p-3 text-center">
-            <p className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase mb-1">Impact</p>
-            <p className="text-[10px] lg:text-xs font-mono font-bold text-green-500">+{commit.stats.insertions}</p>
-          </div>
-          <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2 lg:p-3 text-center">
-            <p className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase mb-1">Deltas</p>
-            <p className="text-[10px] lg:text-xs font-mono font-bold text-red-500">-{commit.stats.deletions}</p>
-          </div>
-          <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2 lg:p-3 text-center">
-            <p className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase mb-1">Files</p>
-            <p className="text-[10px] lg:text-xs font-mono font-bold text-white">{commit.stats.filesChanged}</p>
-          </div>
+      <div className="p-6 lg:p-8 space-y-8 flex-1 pb-24">
+        {/* Statistics HUD */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Impact', val: `+${commit.stats.insertions}`, color: 'text-green-500' },
+            { label: 'Deltas', val: `-${commit.stats.deletions}`, color: 'text-red-500' },
+            { label: 'Entropy', val: commit.stats.filesChanged, color: 'text-blue-500' }
+          ].map((stat, i) => (
+            <div key={i} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-center">
+              <p className="text-[8px] font-black text-slate-600 uppercase mb-1 tracking-widest">{stat.label}</p>
+              <p className={`text-xs font-mono font-black ${stat.color}`}>{stat.val}</p>
+            </div>
+          ))}
         </div>
 
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[11px] lg:text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-              <Icons.Brain className={`w-4 h-4 ${loading ? 'text-amber-500 animate-pulse' : 'text-amber-500'}`} />
-              Forensic Audit
+          <div className="flex items-center justify-between border-b border-white/5 pb-4">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+              <Icons.Brain className={`w-4 h-4 text-amber-500 ${loading ? 'animate-pulse' : ''}`} />
+              Forensic Intelligence
             </h3>
-            {loading && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            )}
+            {loading && <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />}
           </div>
 
           {analysis ? (
-            <div className="space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-               <div className="p-4 lg:p-5 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-5 h-5 bg-amber-500 rounded flex items-center justify-center">
-                     <Icons.Brain className="w-3 h-3 text-black" />
-                  </div>
-                  <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Conceptual Shift</h4>
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               {/* High-Impact Conceptual Summary */}
+               <div className="p-5 rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <h4 className="text-[9px] font-black uppercase text-amber-500 tracking-widest">Architectural Pivot</h4>
                 </div>
-                <p className="text-xs lg:text-[13px] text-slate-200 leading-relaxed font-semibold">
+                <p className="text-sm text-slate-200 leading-relaxed font-semibold">
                   {analysis.conceptualSummary}
                 </p>
               </div>
 
-               <div className="bg-black border border-slate-800 p-4 lg:p-5 rounded-2xl relative overflow-hidden">
-                <div className="flex items-end justify-between mb-4 relative z-10">
+               {/* Risk Score Meter */}
+               <div className="glass p-6 rounded-3xl space-y-4">
+                <div className="flex items-end justify-between">
                   <div>
-                    <p className="text-[9px] lg:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Regression Risk</p>
-                    <p className="text-2xl lg:text-3xl font-black text-amber-500">{analysis.probabilityScore}%</p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Regression Risk Profile</p>
+                    <p className="text-3xl font-black text-white">{analysis.probabilityScore}%</p>
                   </div>
-                  <div className="px-2 py-0.5 rounded text-[8px] lg:text-[9px] font-black uppercase border border-amber-500 text-amber-500">
-                    {analysis.category}
-                  </div>
+                  <Icons.Alert className={`w-6 h-6 ${analysis.probabilityScore > 60 ? 'text-red-500' : 'text-amber-500'}`} />
                 </div>
-                <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${analysis.probabilityScore}%` }}></div>
+                <div className="w-full bg-slate-900/50 h-2 rounded-full overflow-hidden p-0.5 border border-white/5">
+                  <div className={`h-full rounded-full transition-all duration-1000 ${analysis.probabilityScore > 60 ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${analysis.probabilityScore}%` }} />
                 </div>
               </div>
 
-              {/* What Broke First? Simulation Section */}
-              <div className="p-4 lg:p-5 rounded-2xl border border-purple-500/30 bg-purple-500/5 space-y-3">
-                <div className="flex items-center gap-2">
-                   <div className="p-1 bg-purple-500/20 rounded">
-                    <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              {/* What Broke First? Simulation */}
+              <div className="p-5 rounded-3xl border border-purple-500/20 bg-purple-500/5 space-y-4">
+                <div className="flex items-center gap-3">
+                   <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                    <Icons.Alert className="w-3.5 h-3.5 text-purple-400" />
                   </div>
-                  <h4 className="text-[10px] font-black uppercase text-purple-400 tracking-widest">What Broke First?</h4>
+                  <h4 className="text-[9px] font-black uppercase text-purple-400 tracking-widest">Failure Path Simulation</h4>
                 </div>
-                <div className="bg-black/40 p-4 rounded-xl border border-purple-500/10">
-                  <p className="text-[11px] lg:text-xs text-slate-200 leading-relaxed font-medium">
-                    <span className="text-purple-400 font-black mr-2">PREDICTION:</span>
-                    {analysis.failureSimulation}
-                  </p>
-                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed font-medium bg-black/40 p-4 rounded-2xl border border-white/5">
+                  <span className="text-purple-400 font-black mr-2">FIRST BREAK:</span>
+                  {analysis.failureSimulation}
+                </p>
               </div>
 
-              {/* Hidden Coupling Detector Section */}
-              <div className="p-4 lg:p-5 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 space-y-3">
-                <div className="flex items-center gap-2">
-                   <div className="p-1 bg-cyan-500/20 rounded">
-                    <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+              {/* Hidden Coupling Detector */}
+              <div className="p-5 rounded-3xl border border-cyan-500/20 bg-cyan-500/5 space-y-4">
+                <div className="flex items-center gap-3">
+                   <div className="p-1.5 bg-cyan-500/20 rounded-lg text-cyan-400">
+                    <Icons.Impact className="w-3.5 h-3.5" />
                   </div>
-                  <h4 className="text-[10px] font-black uppercase text-cyan-400 tracking-widest">Hidden Coupling Detector</h4>
+                  <h4 className="text-[9px] font-black uppercase text-cyan-400 tracking-widest">Hidden Coupling Scan</h4>
                 </div>
                 <div className="space-y-2">
                   {analysis.hiddenCouplings.map((coupling, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 rounded bg-black/40 border border-cyan-500/10">
-                      <div className="w-1 h-1 rounded-full bg-cyan-500" />
-                      <p className="text-[10px] lg:text-[11px] text-slate-300 font-mono tracking-tight">{coupling}</p>
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-black/40 border border-white/5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
+                      <p className="text-[10px] text-slate-300 font-mono font-medium tracking-tight">{coupling}</p>
                     </div>
                   ))}
-                  {analysis.hiddenCouplings.length === 0 && (
-                    <p className="text-[10px] text-slate-500 italic px-2">No non-obvious couplings detected.</p>
-                  )}
                 </div>
               </div>
 
-              <div className="p-4 lg:p-5 rounded-2xl border border-blue-500/30 bg-blue-500/5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Remediation Advisory</h4>
-                </div>
+              {/* Remediation Strategies */}
+              <div className="p-5 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-5">
+                <h4 className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Remediation Protocol</h4>
                 <div className="space-y-3">
                   {analysis.fixStrategies.map((strategy, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <span className="text-blue-500 font-mono text-[10px] mt-0.5">{i + 1}.</span>
+                    <div key={i} className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors cursor-default">
+                      <span className="text-blue-500 font-mono text-xs font-black">0{i + 1}</span>
                       <p className="text-[11px] text-slate-300 font-medium leading-relaxed">{strategy}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="p-4 lg:p-5 rounded-2xl border border-red-500/30 bg-red-500/5">
-                <div className="flex items-center gap-2 mb-3">
+              {/* Danger Alert */}
+              <div className="p-5 rounded-3xl border border-red-500/20 bg-red-500/5">
+                <div className="flex items-center gap-2 mb-4">
                   <Icons.Alert className="w-4 h-4 text-red-500" />
-                  <h4 className="text-[10px] font-black uppercase text-red-500">Forensic Danger Alert</h4>
+                  <h4 className="text-[9px] font-black uppercase text-red-500 tracking-widest">Primary Danger Reasoning</h4>
                 </div>
-                <p className="text-[11px] lg:text-xs text-slate-200 font-mono italic p-3 bg-black/40 rounded-lg">"{analysis.dangerReasoning}"</p>
+                <div className="p-4 bg-black/60 rounded-2xl border border-red-500/10">
+                  <p className="text-[11px] text-slate-200 font-mono italic leading-relaxed">"{analysis.dangerReasoning}"</p>
+                </div>
               </div>
 
-              <div>
-                <h4 className="text-[9px] lg:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Technical Intent</h4>
-                <p className="text-xs text-slate-300 leading-relaxed font-medium">{analysis.summary}</p>
-              </div>
-
-              <div>
-                <h4 className="text-[9px] lg:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Logic Deltas</h4>
-                <div className="space-y-2">
-                  {analysis.logicChanges.map((change, i) => (
-                    <div key={i} className="flex gap-3 p-3 rounded-lg bg-slate-900/30 border border-slate-800/50">
-                      <div className="w-1 h-auto bg-amber-500/40 rounded-full" />
-                      <p className="text-[10px] lg:text-[11px] text-slate-400 leading-normal">{change}</p>
-                    </div>
-                  ))}
-                </div>
+              {/* Technical Summary */}
+              <div className="space-y-3 pt-4 border-t border-white/5">
+                <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Technical Intent</h4>
+                <p className="text-xs text-slate-400 leading-relaxed font-medium px-1">{analysis.summary}</p>
               </div>
             </div>
           ) : (
-            <div className="py-8 lg:py-12 flex flex-col items-center justify-center text-center px-4">
+            <div className="py-12 flex flex-col items-center justify-center text-center px-4">
+              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6 group cursor-pointer" onClick={onAnalyze}>
+                <Icons.Brain className={`w-8 h-8 text-slate-700 group-hover:text-amber-500 transition-colors ${loading ? 'animate-pulse' : ''}`} />
+              </div>
               <button 
                 onClick={onAnalyze}
                 disabled={loading || !commit.diffs.length}
-                className="w-full py-5 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-xl transition-all shadow-xl disabled:opacity-50 active:scale-95 group overflow-hidden relative"
+                className="w-full py-6 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-[0.3em] rounded-2xl transition-all shadow-xl disabled:opacity-50 active:scale-95 relative overflow-hidden group/btn"
               >
-                <div className={`absolute inset-0 bg-white/20 transition-transform duration-1000 ${loading ? 'translate-x-0' : '-translate-x-full'}`}></div>
+                <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-500" />
                 <span className="relative z-10 flex items-center justify-center gap-3">
-                  <Icons.Brain className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  {loading ? 'Crunching Audit Data...' : 'Initiate Forensic Audit'}
+                  {loading ? 'Crunching Audit...' : 'Run Forensic Audit'}
                 </span>
               </button>
               {loading && (
-                <p className="mt-4 text-[9px] text-slate-500 uppercase font-black animate-pulse">Requesting Fast-Path Audit (max 15s)...</p>
+                <p className="mt-6 text-[9px] text-slate-500 uppercase font-black animate-pulse tracking-widest">Allocating Gemini Thinking Budget...</p>
               )}
             </div>
           )}

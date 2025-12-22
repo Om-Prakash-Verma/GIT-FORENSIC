@@ -51,13 +51,14 @@ const Workspace: React.FC<WorkspaceProps> = ({
 
   return (
     <div className="flex flex-col lg:flex-row h-screen w-screen bg-[#020617] text-slate-200 overflow-hidden font-sans">
+      {/* Sidebar - Hidden on mobile, sticky on desktop */}
       <NavigationSidebar 
         bisectActive={bisect.isActive} 
         onExit={onExit} 
         onToggleBisect={onToggleBisect} 
       />
 
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 bg-[#020617] overflow-hidden relative">
         <MainHeader 
           metadata={metadata} 
           bisectActive={bisect.isActive} 
@@ -67,63 +68,77 @@ const Workspace: React.FC<WorkspaceProps> = ({
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Timeline - Compact on mobile, larger on desktop */}
           <Timeline 
             commits={commits} selectedHash={selectedHash} onSelect={setSelectedHash}
             bisectStatuses={bisectStatuses}
             bisectRange={bisect.isActive ? { start: bisect.goodHash, end: bisect.badHash } : undefined}
           />
           
-          <div className="bg-black/40 px-6 py-2 border-b border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-6">
-               <div className="flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Volatility Peaks</span>
+          {/* Status Bar */}
+          <div className="bg-black/40 px-6 py-2 border-y border-white/5 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+               <div className="flex items-center gap-2 shrink-0">
+                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                 <span className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Volatility Peaks</span>
                </div>
-               <div className="hidden md:flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-slate-700" />
-                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Stability Baselines</span>
+               <div className="hidden sm:flex items-center gap-2 shrink-0">
+                 <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+                 <span className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Stability Baselines</span>
                </div>
             </div>
-            <p className="text-[8px] font-mono text-slate-600 uppercase">Heuristic Depth: v3.2-VolatilityMatrix</p>
+            <p className="hidden md:block text-[8px] font-mono text-slate-700 uppercase">Engine: Gemini-3-Flash.LogicScanner-v3.2</p>
           </div>
 
-          <nav className="lg:hidden flex border-b border-white/5 bg-black/30 shrink-0 h-12">
+          {/* Mobile Tab Navigation */}
+          <nav className="lg:hidden flex border-b border-white/5 bg-black/30 shrink-0 h-14 overflow-x-auto no-scrollbar">
             {(['files', 'diff', 'impact', 'analysis'] as MobileView[]).map(view => (
-              <button key={view} onClick={() => setMobileView(view)} className={`flex-1 flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === view ? 'text-amber-500 bg-amber-500/5 border-b-2 border-amber-500' : 'text-slate-500 hover:text-slate-300'}`}>
-                {view}
+              <button 
+                key={view} 
+                onClick={() => setMobileView(view)} 
+                className={`flex-1 min-w-[80px] flex flex-col items-center justify-center gap-1 transition-all relative ${mobileView === view ? 'text-amber-500' : 'text-slate-500'}`}
+              >
+                <span className="text-[8px] font-black uppercase tracking-widest">{view}</span>
+                {mobileView === view && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500 shadow-[0_0_10px_rgba(251,191,36,0.5)]" />}
               </button>
             ))}
           </nav>
 
+          {/* Main Content Area - Grid that adapts */}
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-             <FileExplorer 
-               isVisible={mobileView === 'files'}
-               commit={currentCommit}
-               activeFilePath={activeFilePath}
-               onSelectFile={(path) => { setActiveFilePath(path); if (window.innerWidth < 1024) setMobileView('diff'); }}
-               isHydrating={isHydrating}
-               hydrationError={hydrationError}
-             />
+             {/* Left Panel: File Explorer */}
+             <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:flex shrink-0 w-full lg:w-72 xl:w-80 h-full border-r border-white/5`}>
+               <FileExplorer 
+                 isVisible={true}
+                 commit={currentCommit}
+                 activeFilePath={activeFilePath}
+                 onSelectFile={(path) => { setActiveFilePath(path); if (window.innerWidth < 1024) setMobileView('diff'); }}
+                 isHydrating={isHydrating}
+                 hydrationError={hydrationError}
+               />
+             </div>
 
-             <div className={`${(mobileView === 'diff' || mobileView === 'impact') ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden min-w-0 bg-black/40`}>
-                <div className="hidden lg:flex items-center gap-1 p-2 bg-black/20 border-b border-white/5">
+             {/* Center Panel: Source / Impact */}
+             <div className={`${(mobileView === 'diff' || mobileView === 'impact') ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden min-w-0 bg-black/20`}>
+                {/* View Switcher Tabs (Desktop Only) */}
+                <div className="hidden lg:flex items-center gap-1 p-3 bg-black/20 border-b border-white/5 shrink-0">
                   <button 
                     onClick={() => setCenterView('diff')}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${centerView === 'diff' ? 'bg-amber-500 text-black shadow-lg' : 'text-slate-500 hover:bg-white/5'}`}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'diff' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
                   >
-                    <Icons.History className="w-3.5 h-3.5" />
+                    <Icons.History className="w-4 h-4" />
                     Source Diff
                   </button>
                   <button 
                     onClick={() => setCenterView('impact')}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${centerView === 'impact' ? 'bg-amber-500 text-black shadow-lg' : 'text-slate-500 hover:bg-white/5'}`}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'impact' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
                   >
-                    <Icons.Impact className="w-3.5 h-3.5" />
+                    <Icons.Impact className="w-4 h-4" />
                     Impact Graph
                   </button>
                 </div>
 
-                <div className="flex-1 relative">
+                <div className="flex-1 relative overflow-hidden">
                   {(centerView === 'diff' && mobileView !== 'impact') ? (
                     <DiffView diffs={currentCommit?.diffs || []} activeFilePath={activeFilePath} />
                   ) : (
@@ -132,7 +147,8 @@ const Workspace: React.FC<WorkspaceProps> = ({
                 </div>
              </div>
 
-             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[400px] flex-col shrink-0 h-full overflow-hidden bg-[#020617]`}>
+             {/* Right Panel: Analysis */}
+             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[380px] xl:w-[440px] flex-col shrink-0 h-full overflow-hidden border-l border-white/5 bg-[#020617]`}>
                <CommitInfo 
                  commit={currentCommit} analysis={analysis} loading={isAnalyzing || isHydrating}
                  onAnalyze={handleAnalyzeWithTransition}

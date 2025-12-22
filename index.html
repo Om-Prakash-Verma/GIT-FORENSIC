@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Git Time-Travel Debugger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -15,6 +15,16 @@
                 DEFAULT: '#fbbf24',
                 dark: '#b45309',
               }
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'scan': 'scan 2s linear infinite',
+            },
+            keyframes: {
+              scan: {
+                '0%': { transform: 'translateY(-100%)' },
+                '100%': { transform: 'translateY(100%)' },
+              }
             }
           }
         }
@@ -22,34 +32,59 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            color-scheme: dark;
+        }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #020617;
             color: #f8fafc;
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            touch-action: manipulation;
         }
         .font-mono {
             font-family: 'Fira Code', monospace;
         }
         /* Custom scrollbar for black/gold theme */
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #020617;
+            background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: #451a03;
-            border-radius: 4px;
+            background: rgba(71, 85, 105, 0.3);
+            border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #78350f;
+            background: rgba(251, 191, 36, 0.4);
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         .gold-glow {
-            box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+            box-shadow: 0 0 25px rgba(251, 191, 36, 0.1);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Mobile fixes for height */
+        @supports (-webkit-touch-callout: none) {
+            .h-screen {
+                height: -webkit-fill-available;
+            }
         }
     </style>
 <script type="importmap">
@@ -67,7 +102,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Crucial entry point for ESM-based rendering -->
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import * as d3 from 'd3';
+// Fix: Import specific d3 functions to resolve property missing errors
+import { select, scalePoint, mean, scaleLinear, area as d3Area, curveMonotoneX } from 'd3';
 import { Commit, BisectStatus, CommitCategory } from '../types.ts';
 import { COLORS } from '../constants.tsx';
 
@@ -24,6 +25,7 @@ const CATEGORY_COLORS: Record<CommitCategory, string> = {
 
 const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bisectStatuses, bisectRange }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeFilters, setActiveFilters] = useState<Set<CommitCategory>>(new Set(['logic', 'feat', 'fix', 'refactor', 'dependency', 'style', 'chore']));
   const [showHeatmap, setShowHeatmap] = useState(true);
 
@@ -44,68 +46,58 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
   useEffect(() => {
     if (!svgRef.current || commits.length === 0) return;
 
-    const isMobile = window.innerWidth < 640;
-    const width = svgRef.current.clientWidth;
-    const height = isMobile ? 120 : 180;
-    const margin = { top: 60, right: 100, bottom: 40, left: 100 };
+    const width = commits.length * 80 + 200;
+    const height = 140;
+    const margin = { top: 40, right: 60, bottom: 40, left: 60 };
     
-    const nodeSpacing = isMobile ? 70 : 100;
-    const timelineWidth = Math.max(width, commits.length * nodeSpacing) - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    const container = d3.select(svgRef.current);
+    // Fix: Using select directly instead of d3.select
+    const container = select(svgRef.current)
+      .attr("width", width)
+      .attr("height", height);
+      
     container.selectAll("*").remove();
 
     const svg = container.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    const x = d3.scalePoint()
+    // Fix: Using scalePoint directly instead of d3.scalePoint
+    const x = scalePoint()
       .domain(commits.map(c => c.hash))
-      .range([0, timelineWidth]);
+      .range([0, width - margin.left - margin.right]);
 
-    // --- Technical Debt Heatmap Layer ---
+    // --- Heatmap ---
     if (showHeatmap) {
       const riskData = commits.map((c, i) => {
-        // Calculate rolling average for smoothing
-        const windowSize = 3;
-        const start = Math.max(0, i - windowSize);
-        const end = Math.min(commits.length - 1, i + windowSize);
-        const neighborhood = commits.slice(start, end + 1);
-        const avgRisk = d3.mean(neighborhood, n => n.volatilityScore) || 0;
+        const windowSize = 2;
+        const neighborhood = commits.slice(Math.max(0, i - windowSize), Math.min(commits.length - 1, i + windowSize) + 1);
+        // Fix: Using mean directly instead of d3.mean
+        const avgRisk = mean(neighborhood, n => n.volatilityScore) || 0;
         return { hash: c.hash, risk: avgRisk };
       });
 
-      const yRisk = d3.scaleLinear()
-        .domain([0, 100])
-        .range([innerHeight, -20]);
-
-      const areaGenerator = d3.area<{ hash: string, risk: number }>()
+      // Fix: Using scaleLinear and d3Area directly instead of d3 namespace
+      const yRisk = scaleLinear().domain([0, 100]).range([innerHeight, 0]);
+      const area = d3Area<{ hash: string, risk: number }>()
         .x(d => x(d.hash) || 0)
         .y0(innerHeight)
         .y1(d => yRisk(d.risk))
-        .curve(d3.curveMonotoneX);
-
-      const defs = svg.append("defs");
-      const riskGradient = defs.append("linearGradient")
-        .attr("id", "risk-gradient")
-        .attr("x1", "0%").attr("y1", "0%").attr("x2", "0%").attr("y2", "100%");
-      
-      riskGradient.append("stop").attr("offset", "0%").attr("stop-color", "#ef4444").attr("stop-opacity", 0.3);
-      riskGradient.append("stop").attr("offset", "100%").attr("stop-color", "#fbbf24").attr("stop-opacity", 0);
+        .curve(curveMonotoneX);
 
       svg.append("path")
         .datum(riskData)
-        .attr("fill", "url(#risk-gradient)")
-        .attr("d", areaGenerator)
-        .attr("class", "animate-in fade-in duration-700");
+        .attr("fill", "rgba(251, 191, 36, 0.05)")
+        .attr("d", area);
     }
 
     // --- Backbone ---
     svg.append("line")
-      .attr("x1", 0).attr("x2", timelineWidth)
+      .attr("x1", 0).attr("x2", width - margin.left - margin.right)
       .attr("y1", innerHeight)
       .attr("y2", innerHeight)
-      .attr("stroke", "#1e293b").attr("stroke-width", 2);
+      .attr("stroke", "rgba(71, 85, 105, 0.2)")
+      .attr("stroke-width", 1);
 
     const commitGroup = svg.selectAll(".commit")
       .data(filteredCommits)
@@ -119,7 +111,7 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
 
     // Outer ring (Bisect status)
     commitGroup.append("circle")
-      .attr("r", 12)
+      .attr("r", 10)
       .attr("fill", "transparent")
       .attr("stroke", d => {
         const status = bisectStatuses[d.hash];
@@ -129,65 +121,55 @@ const Timeline: React.FC<TimelineProps> = ({ commits, selectedHash, onSelect, bi
       })
       .attr("stroke-width", 2);
 
-    // Node Circle (Categorized)
+    // Node Circle
     commitGroup.append("circle")
-      .attr("r", d => d.hash === selectedHash ? 7 : 5)
-      .attr("fill", d => CATEGORY_COLORS[d.category || 'logic'])
-      .attr("stroke", "#020617")
+      .attr("r", d => d.hash === selectedHash ? 6 : 4)
+      .attr("fill", d => d.hash === selectedHash ? "#fff" : CATEGORY_COLORS[d.category || 'logic'])
+      .attr("stroke", d => d.hash === selectedHash ? COLORS.gold : "#020617")
       .attr("stroke-width", 2);
-
-    // Heatmap Tick (Vertical Line indicating individual risk)
-    if (showHeatmap) {
-      commitGroup.append("line")
-        .attr("y1", 0)
-        .attr("y2", d => -Math.min(d.volatilityScore, 60))
-        .attr("stroke", d => d.volatilityScore > 70 ? "#ef4444" : "#475569")
-        .attr("stroke-width", 1)
-        .attr("stroke-dasharray", "2,2")
-        .attr("opacity", 0.4);
-    }
 
     // Hash Labels
     commitGroup.append("text")
-      .attr("y", 25).attr("text-anchor", "middle")
-      .attr("fill", d => d.hash === selectedHash ? COLORS.gold : "#64748b")
-      .attr("font-size", "9px").attr("font-family", "Fira Code")
+      .attr("y", 22).attr("text-anchor", "middle")
+      .attr("fill", d => d.hash === selectedHash ? COLORS.gold : "rgba(100, 116, 139, 0.6)")
+      .attr("font-size", "8px").attr("font-family", "Fira Code")
       .text(d => d.hash.substring(0, 7));
 
-    if (selectedHash) {
+    if (selectedHash && containerRef.current) {
       const selectedX = x(selectedHash) || 0;
-      svgRef.current?.parentElement?.scrollTo({ left: selectedX + margin.left - width / 2, behavior: 'smooth' });
+      const scrollPos = selectedX + margin.left - containerRef.current.clientWidth / 2;
+      containerRef.current.scrollTo({ left: scrollPos, behavior: 'smooth' });
     }
   }, [filteredCommits, selectedHash, onSelect, bisectStatuses, bisectRange, showHeatmap]);
 
   return (
-    <div className="w-full flex flex-col bg-[#020617] border-b border-slate-800 shrink-0">
-      <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
+    <div className="w-full flex flex-col bg-[#020617] shrink-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/5">
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Clusters:</span>
+          <span className="text-[7px] font-black text-slate-600 uppercase tracking-[0.3em] whitespace-nowrap">Filter Nodes:</span>
           {(Object.keys(CATEGORY_COLORS) as CommitCategory[]).map(cat => (
             <button 
               key={cat}
               onClick={() => toggleFilter(cat)}
-              className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all ${activeFilters.has(cat) ? 'bg-white/5 border-white/10' : 'opacity-30 grayscale border-transparent'}`}
+              className={`flex items-center gap-2 px-2 py-1 rounded-md border transition-all ${activeFilters.has(cat) ? 'bg-white/5 border-white/10' : 'opacity-20 grayscale border-transparent'}`}
             >
               <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[cat] }} />
-              <span className="text-[8px] font-black uppercase text-slate-300 tracking-tighter">{cat}</span>
+              <span className="text-[7px] font-black uppercase text-slate-400 tracking-tighter">{cat}</span>
             </button>
           ))}
         </div>
         
         <button 
           onClick={() => setShowHeatmap(!showHeatmap)}
-          className={`flex items-center gap-2 px-3 py-1 rounded-lg border transition-all ${showHeatmap ? 'bg-amber-500/10 border-amber-500/40 text-amber-500' : 'bg-slate-900 border-slate-800 text-slate-500'}`}
+          className={`flex items-center gap-2 px-3 py-1 rounded-md transition-all ${showHeatmap ? 'text-amber-500' : 'text-slate-600'}`}
         >
-          <div className={`w-1.5 h-1.5 rounded-full ${showHeatmap ? 'bg-amber-500' : 'bg-slate-700'}`} />
-          <span className="text-[8px] font-black uppercase tracking-widest">Risk Heatmap</span>
+          <div className={`w-1 h-1 rounded-full ${showHeatmap ? 'bg-amber-500 animate-pulse' : 'bg-slate-700'}`} />
+          <span className="text-[8px] font-black uppercase tracking-widest">Heatmap</span>
         </button>
       </div>
       
-      <div className="w-full h-[120px] lg:h-[180px] relative group overflow-x-auto overflow-y-hidden custom-scrollbar">
-        <svg ref={svgRef} className="h-full" style={{ width: commits.length * 100 + 200 }} />
+      <div ref={containerRef} className="w-full h-[140px] relative overflow-x-auto no-scrollbar">
+        <svg ref={svgRef} className="block" />
       </div>
     </div>
   );

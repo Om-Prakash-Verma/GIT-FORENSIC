@@ -11,56 +11,54 @@ export default async function handler(req: any, res: any) {
   const { commit, model: requestedModel } = req.body;
 
   if (!commit) {
-    console.error("[API/Analyze] Missing commit in request body");
     return res.status(400).json({ error: 'Incomplete parameters' });
   }
 
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    console.error("[API/Analyze] API_KEY environment variable is not configured");
     return res.status(500).json({ error: 'Server API Key missing' });
   }
 
   const ai = new GoogleGenAI({ apiKey });
   
-  // Base stages for fallback - using official model identifiers from guidelines
+  // Model Mapping - Normalize user-facing labels to internal API identifiers
+  const modelIdMap: Record<string, string> = {
+    'gemini-3-pro-preview': 'gemini-3-pro-preview',
+    'gemini-3-flash-preview': 'gemini-3-flash-preview',
+    'gemini-2.5-flash': 'gemini-flash-latest'
+  };
+
+  const targetId = modelIdMap[requestedModel] || (requestedModel !== 'auto' ? requestedModel : 'gemini-3-pro-preview');
+
+  // Base fallback strategy
   const allStages = [
     { model: 'gemini-3-pro-preview', useThinking: true },
-    { model: 'gemini-3-pro-preview', useThinking: false },
     { model: 'gemini-3-flash-preview', useThinking: false },
-    { model: 'gemini-flash-latest', useThinking: false } // Fallback to standard Flash
+    { model: 'gemini-flash-latest', useThinking: false }
   ];
 
-  // If the user requested a specific model, we prioritize it
+  // Re-order stages to prioritize user selection
   let executionStages = allStages;
   if (requestedModel && requestedModel !== 'auto') {
-    // Mapping friendly names to API IDs
-    const modelIdMap: Record<string, string> = {
-      'gemini-3-pro-preview': 'gemini-3-pro-preview',
-      'gemini-3-flash-preview': 'gemini-3-flash-preview',
-      'gemini-2.5-flash': 'gemini-flash-latest' // Correcting the user-facing name to internal ID
-    };
-
-    const targetId = modelIdMap[requestedModel] || requestedModel;
     const isPro = targetId.includes('pro');
-    
     executionStages = [
-      { model: targetId, useThinking: isPro }, 
-      ...allStages.filter(s => s.model !== targetId) 
+      { model: targetId, useThinking: isPro },
+      ...allStages.filter(s => s.model !== targetId)
     ];
   }
 
-  const MAX_DIFF_CHARS = 2500; // Slightly more conservative for stability
-  const diffContext = commit.diffs.slice(0, 6).map((d: any) => {
+  const MAX_DIFF_CHARS = 2800; 
+  const diffContext = commit.diffs.slice(0, 8).map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
 
-  const prompt = `Act as a senior software architect and world-class security researcher. 
-Perform a deep forensic audit of this commit diff. Identify architectural risks, potential regressions, and semantic intent.
+  const systemInstruction = `You are a world-class senior software architect and security researcher. 
+Perform a deep forensic audit of commit diffs to identify architectural risks, potential regressions, and semantic intent.
+Return a strictly valid JSON response describing the commit's impact.`;
 
-Commit Msg: ${commit.message}
-Stats: +${commit.stats.insertions} / -${commit.stats.deletions}
+  const userPrompt = `Commit Message: ${commit.message}
+Stats: +${commit.stats.insertions} / -${commit.stats.deletions} insertions/deletions across ${commit.stats.filesChanged} files.
 
 [COMMIT DIFF DATA]
 ${diffContext}
@@ -69,27 +67,26 @@ ${diffContext}
 Return a JSON object following this EXACT structure:
 {
   "category": "logic" | "refactor" | "dependency" | "style" | "feat" | "fix" | "chore",
-  "conceptualSummary": "Single sentence high-level intent.",
-  "summary": "Detailed technical summary.",
-  "logicChanges": ["Change 1", "Change 2"],
-  "bugRiskExplanation": "Why this is or isn't risky.",
-  "dangerReasoning": "One specific architectural failure point.",
+  "conceptualSummary": "One sentence describing the core technical pivot.",
+  "summary": "Detailed technical explanation of the changes.",
+  "logicChanges": ["Significant logic change 1", "Significant logic change 2"],
+  "bugRiskExplanation": "Why this change is or isn't high risk for production bugs.",
+  "dangerReasoning": "One specific architectural failure point that could arise from this change.",
   "probabilityScore": 0-100,
-  "riskFactors": ["Factor 1", "Factor 2"],
-  "fixStrategies": ["Strategy 1", "Strategy 2"],
-  "failureSimulation": "Predict the exact component that fails first.",
-  "hiddenCouplings": ["Non-obvious coupling 1", "Non-obvious coupling 2"]
-}
-
-Respond ONLY with valid JSON.`;
+  "riskFactors": ["Specific risk factor 1", "Specific risk factor 2"],
+  "fixStrategies": ["Remediation strategy 1", "Remediation strategy 2"],
+  "failureSimulation": "Predict exactly which component or flow fails first if a bug exists.",
+  "hiddenCouplings": ["Non-obvious dependency 1", "Non-obvious dependency 2"]
+}`;
 
   let lastError: any = null;
 
   for (const stage of executionStages) {
     try {
-      console.log(`[API/Analyze] Attempting Stage: Model=${stage.model}, Thinking=${stage.useThinking}`);
+      console.log(`[API/Analyze] Invoking: ${stage.model} (Thinking: ${stage.useThinking})`);
       
       const config: any = {
+        systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -111,34 +108,37 @@ Respond ONLY with valid JSON.`;
       };
 
       if (stage.useThinking) {
-        config.thinkingConfig = { thinkingBudget: 4096 }; 
+        // Critical: When setting thinkingBudget, maxOutputTokens must be explicitly defined and larger than the budget.
+        config.maxOutputTokens = 20000;
+        config.thinkingConfig = { thinkingBudget: 16384 }; 
       }
 
       const response: GenerateContentResponse = await ai.models.generateContent({
         model: stage.model,
-        contents: prompt,
+        contents: userPrompt,
         config
       });
 
       const text = response.text;
-      if (!text) continue;
+      if (!text || text.trim() === '') {
+        console.warn(`[API/Analyze] Empty output from ${stage.model}. Attempting fallback...`);
+        continue;
+      }
 
       const parsed = JSON.parse(text);
-      console.log(`[API/Analyze] Success with ${stage.model}`);
+      console.log(`[API/Analyze] Audit complete. Successful model: ${stage.model}`);
       return res.status(200).json({ ...parsed, modelUsed: stage.model });
 
     } catch (error: any) {
       lastError = error;
       console.warn(`[API/Analyze] Stage ${stage.model} failed:`, error.message);
-      // If thinking isn't available, we don't want to fail the whole request
-      if (error.message.includes('thinkingConfig') || error.message.includes('404')) {
-        continue;
-      }
+      // Skip to next stage if this one failed
+      continue;
     }
   }
 
   return res.status(500).json({ 
-    error: 'Forensic audit failed', 
-    details: lastError?.message || 'The AI service was unable to process this diff.'
+    error: 'Forensic audit failed across all model tiers', 
+    details: lastError?.message || 'Unknown upstream AI failure.'
   });
 }

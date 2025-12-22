@@ -26,9 +26,7 @@ export const useGitRepo = () => {
 
   const gemini = useMemo(() => new GeminiService(), []);
   
-  // Use a ref to track the last commit that was actually selected to prevent clearing state during hydration
-  const lastAnalyzedHash = useRef<string | null>(null);
-  const currentSelectedHash = useRef<string | null>(null);
+  const currentHashRef = useRef<string | null>(null);
 
   // Persistence: Recovery
   useEffect(() => {
@@ -84,21 +82,20 @@ export const useGitRepo = () => {
     setImpactData(null);
     setRepoPath('');
     setHydrationError(null);
-    currentSelectedHash.current = null;
-    lastAnalyzedHash.current = null;
+    currentHashRef.current = null;
   }, []);
 
   // Sync effect for selected hash changes
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
     
-    // Only clear analysis and impact data if we actually switched to a DIFFERENT hash
-    if (currentSelectedHash.current !== selectedHash) {
-      console.log(`[useGitRepo] Context switched to ${selectedHash.substring(0, 8)}. Resetting forensic cache.`);
+    // Only clear analysis if the hash is actually DIFFERENT from the last known hash
+    if (currentHashRef.current !== selectedHash) {
+      console.log(`[useGitRepo] Navigated to ${selectedHash.substring(0, 8)}. Clearing forensic cache.`);
       setAnalysis(null);
       setImpactData(null);
       setHydrationError(null);
-      currentSelectedHash.current = selectedHash;
+      currentHashRef.current = selectedHash;
     }
 
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
@@ -108,16 +105,16 @@ export const useGitRepo = () => {
     const prepareCommit = async () => {
       let activeCommit = commit;
       
-      // Lazy-load diffs if missing
+      // Hydrate if diffs are missing (e.g. initial load from GitHub)
       if (commit.diffs.length === 0 && metadata.path.includes('github.com')) {
         setIsHydrating(true);
         try {
           activeCommit = await GitService.hydrateCommitDiffs(metadata.path, commit);
-          setCommits(prevCommits => {
-            const newCommits = [...prevCommits];
-            const idx = newCommits.findIndex(c => c.hash === selectedHash);
-            if (idx !== -1) newCommits[idx] = activeCommit;
-            return newCommits;
+          setCommits(prev => {
+            const next = [...prev];
+            const idx = next.findIndex(c => c.hash === selectedHash);
+            if (idx !== -1) next[idx] = activeCommit;
+            return next;
           });
         } catch (err: any) {
           setHydrationError(err.message);
@@ -126,7 +123,7 @@ export const useGitRepo = () => {
         }
       }
 
-      // Generate impact graph if diffs are available and graph is missing
+      // Generate impact graph if missing
       if (activeCommit.diffs.length > 0 && !impactData) {
         setIsMappingImpact(true);
         try {
@@ -143,7 +140,7 @@ export const useGitRepo = () => {
     prepareCommit();
   }, [selectedHash, metadata?.path]);
 
-  // Handle active file selection
+  // Sync active file with current commit's diffs
   useEffect(() => {
     const commit = commits.find(c => c.hash === selectedHash);
     if (commit && commit.diffs.length > 0) {
@@ -157,27 +154,23 @@ export const useGitRepo = () => {
 
   const analyzeCommit = async () => {
     const commit = commits.find(c => c.hash === selectedHash);
-    if (!commit || commit.diffs.length === 0 || isAnalyzing) {
-      console.warn("[useGitRepo] Analysis skipped: Context missing or busy.");
-      return;
-    }
+    if (!commit || commit.diffs.length === 0 || isAnalyzing) return;
 
     setIsAnalyzing(true);
     try {
-      console.log(`[useGitRepo] Dispatching audit request for ${selectedHash.substring(0, 8)} | Target: ${selectedModel}`);
+      console.log(`[useGitRepo] Dispatching audit request. Target Model: ${selectedModel}`);
       const result = await gemini.analyzeCommit(commit, selectedModel);
       
-      // Double check that we are still on the same hash before updating state
-      if (currentSelectedHash.current === selectedHash) {
-        console.log("[useGitRepo] Commit audit succeeded. Updating UI state.");
+      // Safety check: ensure we are still on the same hash before committing analysis result
+      if (currentHashRef.current === selectedHash) {
+        console.log("[useGitRepo] Analysis successful. Updating state.");
         setAnalysis(result);
-        lastAnalyzedHash.current = selectedHash;
       } else {
-        console.warn("[useGitRepo] Analysis discarded: Hash context changed during request.");
+        console.warn("[useGitRepo] Analysis result discarded: Hash mismatch (navigated away).");
       }
       return true;
     } catch (err) {
-      console.error("[useGitRepo] Critical failure in analysis dispatch:", err);
+      console.error("[useGitRepo] Analysis process failed:", err);
       return false;
     } finally {
       setIsAnalyzing(false);

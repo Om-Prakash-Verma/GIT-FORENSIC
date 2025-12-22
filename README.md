@@ -1,4 +1,3 @@
-
 # 🕵️‍♂️ Git Time-Travel Debugger: Forensic Suite
 
 [![Project Status: Production](https://img.shields.io/badge/Status-Production--Grade-success?style=for-the-badge)](https://github.com/Om-Prakash-Verma/GIT-FORENSICS)
@@ -8,45 +7,45 @@
 
 > **"Code reveals what happened. Forensics reveals why it matters."**
 
-**Git Time-Travel Debugger** (Forensic Suite) is a high-fidelity developer utility built for deep root-cause analysis, semantic audit, and visual history exploration. It leverages the advanced reasoning capabilities of Gemini 3 to transform standard diffs into actionable architectural insights.
+**Git Time-Travel Debugger** is a production-grade developer tool built for deep root-cause analysis, semantic audit, and visual history exploration. It transforms raw Git diffs into actionable architectural insights using Gemini 3's advanced reasoning.
 
 ---
 
 ## 💎 The Forensic Toolkit
 
 ### 1. 🧠 Intelligent Logic Auditing
-The **Forensic Reasoning Engine** (powered by Gemini 3 Pro/Flash) performs deep semantic audits on every changeset:
-- **Multi-Model Strategy**: Choose between high-reasoning "Thinking" models (Gemini 3 Pro) for complex logic or high-speed "Flash" models for rapid history scrubbing.
-- **Predictive Failure Simulation**: Identifies the specific component or state machine transition most likely to fail as a result of the changeset.
-- **Hidden Coupling Detection**: Surfaces non-obvious dependencies that may cause regression in distant modules.
+The **Forensic Reasoning Engine** (powered by Gemini 3 Pro/Flash) performs deep semantic audits:
+- **Multi-Model Strategy**: Select high-reasoning **Thinking** models (Pro) for complex architectural pivots, or high-speed **Flash** models for rapid triage.
+- **Predictive Failure Simulation**: Predicts exactly which component or flow is most likely to break first if a regression exists.
+- **Hidden Coupling Detection**: Surfaces non-obvious dependencies (e.g., environment variables, shared state) that may cause side-effects.
 - **Risk Score HUD**: Real-time regression risk profiling (0-100%).
 
 ### 2. 🕸 Visual Impact Graph
-A dynamic D3.js force-directed graph that maps the "blast radius" of a commit:
-- **Modified vs. Impacted**: Clearly distinguishes between files that were edited and those that are likely affected via imports.
-- **Force-Directed Layout**: Intuitively clusters related modules to visualize code locality and dependency debt.
+A dynamic D3.js force-directed graph that maps the "blast radius" of every commit:
+- **Modified vs. Impacted**: Distinguishes between explicitly edited files and potentially affected imports.
+- **Clustering**: Intuitively group related modules to visualize code locality.
 
 ### 3. ⚡️ Visual Git Bisect HUD
-Accelerate bug hunting with a visually assisted binary search:
+Accelerate bug-hunting with a visually assisted binary search:
 - **Automated Midpoint Calculation**: Mathematically optimal search space reduction.
-- **State Persistence**: Your forensic search progress is saved locally, allowing you to pause and resume audits across sessions.
+- **Visual Range Marking**: Clearly see "Good" and "Bad" boundaries in the timeline.
 
 ---
 
 ## 🏛 Technical Architecture
 
 ### **AI Dispatch Layer (`api/analyze.ts`)**
-- **Tiered Execution**: A robust backend pipeline that attempts analysis with Gemini 3 Pro (with thinking budget enabled) before falling back to faster Flash models.
-- **Payload Optimization**: Intelligent diff truncation ensures that the most relevant lines are prioritized within the LLM's context window.
-- **Structured Outputs**: Strictly enforced JSON schema validation via `@google/genai` to ensure consistent UI hydration.
+- **Tiered Execution**: Attempts high-fidelity reasoning with Gemini 3 Pro (Thinking) before falling back to latency-optimized Flash models.
+- **Thinking Configuration**: Explicitly tuned `thinkingBudget` (16k) and `maxOutputTokens` (20k) to ensure deep reasoning without truncated JSON responses.
+- **Structured JSON Schema**: Enforces strict OpenAI-compatible response schemas for reliable UI hydration.
 
-### **State Orchestration (`hooks/useGitRepo.ts`)**
-- **Lazy Hydration**: Commit metadata is loaded initially, while full patches and AI audits are hydrated on-demand to optimize bandwidth.
-- **Context Locking**: Prevents race conditions during asynchronous AI reasoning to ensure forensic data remains synced with the selected commit.
+### **State Management (`hooks/useGitRepo.ts`)**
+- **Lazy Context Loading**: Commits are hydrated with full diffs only when selected.
+- **State Guarding**: Prevents race conditions and state clearing during parallel hydration tasks, ensuring AI analysis remains visible during background operations.
 
 ---
 
-## 🚀 Deployment & Configuration
+## 🚀 Deployment
 
 ### **Environment Variables**
 ```env
@@ -54,10 +53,11 @@ API_KEY=your_gemini_api_key_here
 ```
 
 ### **Quick Start**
-1. **Clone & Install**: `npm install`
-2. **Launch Trace**: `npm run dev`
-3. **Import Trace**: Paste any public GitHub URL (e.g., `https://github.com/facebook/react`) to begin the audit.
+1. **Clone**: `git clone ...`
+2. **Install**: `npm install`
+3. **Run**: `npm run dev`
+4. **Audit**: Paste a public GitHub URL to begin the forensic scan.
 
 ---
 
-*Designed for senior architects and security researchers who require absolute precision in their version control workflows.*
+*Designed for senior software architects requiring absolute precision in root-cause investigation.*

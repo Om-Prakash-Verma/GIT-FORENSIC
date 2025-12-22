@@ -21,21 +21,27 @@ interface ImpactGraphProps {
 
 const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!svgRef.current || !data || data.nodes.length === 0) return;
+    if (!svgRef.current || !containerRef.current || !data || data.nodes.length === 0) return;
 
-    const width = svgRef.current.clientWidth;
-    const height = svgRef.current.clientHeight;
+    let width = containerRef.current.clientWidth;
+    let height = containerRef.current.clientHeight;
 
-    // Fix: Using select directly instead of d3.select
+    const updateDimensions = () => {
+      if (!containerRef.current) return;
+      width = containerRef.current.clientWidth;
+      height = containerRef.current.clientHeight;
+    };
+
+    updateDimensions();
+
     const svg = select(svgRef.current);
     svg.selectAll("*").remove();
 
     const g = svg.append("g");
 
-    // Add zoom behavior
-    // Fix: Using d3Zoom directly instead of d3.zoom
     const zoom = d3Zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 4])
       .on("zoom", (event) => {
@@ -44,7 +50,6 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
 
     svg.call(zoom);
 
-    // Fix: Using forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide directly instead of d3. prefixes
     const simulation = forceSimulation<ImpactNode>(data.nodes)
       .force("link", forceLink<ImpactNode, ImpactLink>(data.links).id(d => d.id).distance(120))
       .force("charge", forceManyBody().strength(-400))
@@ -79,13 +84,11 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
       .selectAll("g")
       .data(data.nodes)
       .join("g")
-      // Fix: Using d3Drag directly instead of d3.drag
       .call(d3Drag<SVGGElement, ImpactNode>()
         .on("start", dragstarted)
         .on("drag", dragged)
         .on("end", dragended) as any);
 
-    // Glow for modified nodes
     node.filter(d => d.isModified)
       .append("circle")
       .attr("r", 18)
@@ -93,14 +96,12 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
       .attr("opacity", 0.1)
       .attr("class", "animate-pulse");
 
-    // Node circles
     node.append("circle")
       .attr("r", d => d.isModified ? 10 : 6)
       .attr("fill", d => d.isModified ? COLORS.gold : "#1e293b")
       .attr("stroke", d => d.isModified ? COLORS.goldDark : "#475569")
       .attr("stroke-width", d => d.isModified ? 3 : 1.5);
 
-    // Node labels
     const label = node.append("text")
       .attr("dx", 15)
       .attr("dy", 4)
@@ -111,7 +112,6 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
       .attr("pointer-events", "none")
       .text(d => d.name);
 
-    // Subtle background for labels
     label.clone(true)
       .attr("fill", "none")
       .attr("stroke", "#020617")
@@ -130,6 +130,17 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
       node.attr("transform", d => `translate(${d.x},${d.y})`);
     });
 
+    // Handle container resizing to update center force
+    const resizeObserver = new ResizeObserver(() => {
+      if (!containerRef.current) return;
+      const newWidth = containerRef.current.clientWidth;
+      const newHeight = containerRef.current.clientHeight;
+      simulation.force("center", forceCenter(newWidth / 2, newHeight / 2));
+      simulation.alpha(0.3).restart();
+    });
+
+    resizeObserver.observe(containerRef.current);
+
     function dragstarted(event: any) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
       event.subject.fx = event.subject.x;
@@ -146,6 +157,8 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
       event.subject.fx = null;
       event.subject.fy = null;
     }
+
+    return () => resizeObserver.disconnect();
 
   }, [data, loading]);
 
@@ -167,7 +180,7 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
   }
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-black/40">
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-black/40 h-full w-full">
       <div className="absolute top-6 left-6 z-10 pointer-events-none">
         <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-2">Dependency Blast Radius</h3>
         <p className="text-[9px] text-slate-500 max-w-xs uppercase leading-relaxed">
@@ -184,7 +197,7 @@ const ImpactGraph: React.FC<ImpactGraphProps> = ({ data, loading }) => {
           <span className="text-[8px] font-black uppercase text-slate-400">Impacted Module</span>
         </div>
       </div>
-      <svg ref={svgRef} className="w-full h-full cursor-move" />
+      <svg ref={svgRef} className="w-full h-full cursor-move block" />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Commit, RepositoryMetadata, AIAnalysis, BisectStatus, BisectState, ImpactData } from '../types.ts';
 import Timeline from './Timeline.tsx';
 import DiffView from './DiffView.tsx';
@@ -42,12 +42,19 @@ const Workspace: React.FC<WorkspaceProps> = ({
 }) => {
   const [mobileView, setMobileView] = useState<MobileView>('diff');
   const [centerView, setCenterView] = useState<CenterView>('diff');
+  const [isCenterExpanded, setIsCenterExpanded] = useState(false);
   const currentCommit = commits.find(c => c.hash === selectedHash) || null;
 
   const handleAnalyzeWithTransition = async () => {
     await onAnalyze();
     if (window.innerWidth < 1024) setMobileView('analysis');
   };
+
+  // Reset focus mode on hash change to ensure context is visible initially
+  useEffect(() => {
+    // Optional: Auto-expand impact graph when selected for first time?
+    // For now, let's keep it manual.
+  }, [selectedHash]);
 
   return (
     <div className="flex flex-col lg:flex-row h-screen w-screen bg-[#020617] text-slate-200 overflow-hidden font-sans">
@@ -68,7 +75,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Timeline - Compact on mobile, larger on desktop */}
+          {/* Timeline */}
           <Timeline 
             commits={commits} selectedHash={selectedHash} onSelect={setSelectedHash}
             bisectStatuses={bisectStatuses}
@@ -104,10 +111,10 @@ const Workspace: React.FC<WorkspaceProps> = ({
             ))}
           </nav>
 
-          {/* Main Content Area - Grid that adapts */}
+          {/* Main Content Area */}
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
              {/* Left Panel: File Explorer */}
-             <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:flex shrink-0 w-full lg:w-72 xl:w-80 h-full border-r border-white/5`}>
+             <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} shrink-0 w-full lg:w-72 xl:w-80 h-full border-r border-white/5 transition-all duration-300`}>
                <FileExplorer 
                  isVisible={true}
                  commit={currentCommit}
@@ -121,24 +128,39 @@ const Workspace: React.FC<WorkspaceProps> = ({
              {/* Center Panel: Source / Impact */}
              <div className={`${(mobileView === 'diff' || mobileView === 'impact') ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden min-w-0 bg-black/20`}>
                 {/* View Switcher Tabs (Desktop Only) */}
-                <div className="hidden lg:flex items-center gap-1 p-3 bg-black/20 border-b border-white/5 shrink-0">
+                <div className="hidden lg:flex items-center justify-between p-3 bg-black/20 border-b border-white/5 shrink-0">
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => setCenterView('diff')}
+                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'diff' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
+                    >
+                      <Icons.History className="w-4 h-4" />
+                      Source Diff
+                    </button>
+                    <button 
+                      onClick={() => setCenterView('impact')}
+                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'impact' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
+                    >
+                      <Icons.Impact className="w-4 h-4" />
+                      Impact Graph
+                    </button>
+                  </div>
+                  
+                  {/* Focus Toggle Button */}
                   <button 
-                    onClick={() => setCenterView('diff')}
-                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'diff' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
+                    onClick={() => setIsCenterExpanded(!isCenterExpanded)}
+                    title={isCenterExpanded ? "Restore Side Panels" : "Maximize Viewport"}
+                    className={`p-2.5 rounded-xl border transition-all ${isCenterExpanded ? 'bg-amber-500/20 border-amber-500/40 text-amber-500' : 'border-white/5 text-slate-500 hover:bg-white/5'}`}
                   >
-                    <Icons.History className="w-4 h-4" />
-                    Source Diff
-                  </button>
-                  <button 
-                    onClick={() => setCenterView('impact')}
-                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'impact' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
-                  >
-                    <Icons.Impact className="w-4 h-4" />
-                    Impact Graph
+                    {isCenterExpanded ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"></path></svg>
+                    )}
                   </button>
                 </div>
 
-                <div className="flex-1 relative overflow-hidden">
+                <div className="flex-1 relative overflow-hidden transition-all duration-300">
                   {(centerView === 'diff' && mobileView !== 'impact') ? (
                     <DiffView diffs={currentCommit?.diffs || []} activeFilePath={activeFilePath} />
                   ) : (
@@ -148,7 +170,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
              </div>
 
              {/* Right Panel: Analysis */}
-             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[380px] xl:w-[440px] flex-col shrink-0 h-full overflow-hidden border-l border-white/5 bg-[#020617]`}>
+             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} w-full lg:w-[380px] xl:w-[440px] flex-col shrink-0 h-full overflow-hidden border-l border-white/5 bg-[#020617] transition-all duration-300`}>
                <CommitInfo 
                  commit={currentCommit} analysis={analysis} loading={isAnalyzing || isHydrating}
                  onAnalyze={handleAnalyzeWithTransition}

@@ -88,6 +88,27 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExit = () => {
+    if (confirm("Are you sure you want to close this project? Unsaved forensic marks will be lost.")) {
+      localStorage.removeItem(STORAGE_KEY);
+      setIsLoaded(false);
+      setMetadata(null);
+      setCommits([]);
+      setSelectedHash(null);
+      setAnalysis(null);
+      setBisect({
+        isActive: false,
+        goodHash: null,
+        badHash: null,
+        currentMidpoint: null,
+        eliminatedHashes: new Set(),
+        suspectedHash: null,
+        history: []
+      });
+      setActiveFilePath(null);
+    }
+  };
+
   // Effect to handle hydration (loading diffs) and clearing stale analysis
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
@@ -299,7 +320,7 @@ const App: React.FC = () => {
       <aside className="w-20 border-r border-white/5 flex flex-col items-center py-10 gap-10 bg-black/40 backdrop-blur-3xl z-50">
         <div 
           className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black shadow-2xl shadow-amber-500/20 cursor-pointer hover:rotate-6 active:scale-90 transition-all border-4 border-black/5"
-          onClick={() => { localStorage.removeItem(STORAGE_KEY); setIsLoaded(false); }}
+          onClick={handleExit}
         >
           GT
         </div>
@@ -329,6 +350,15 @@ const App: React.FC = () => {
                 {metadata?.path}
               </span>
             </div>
+            
+            <button 
+              onClick={handleExit}
+              className="ml-4 flex items-center gap-2 px-4 py-2 border border-white/5 bg-white/5 hover:bg-red-500/10 hover:border-red-500/40 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-400 rounded-xl transition-all group"
+              title="Close Repository"
+            >
+              <Icons.Close className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              Close Project
+            </button>
           </div>
 
           {bisect.isActive && (

@@ -1,0 +1,105 @@
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Commit, BisectState, BisectStatus } from '../types.ts';
+import { BisectEngine } from '../services/gitService.ts';
+
+const STORAGE_KEY_BISECT = 'git-forensics-bisect-state';
+
+export const useGitBisect = (commits: Commit[], onMidpointSelected: (hash: string) => void) => {
+  const [bisect, setBisect] = useState<BisectState & { remaining?: number; steps?: number }>({
+    isActive: false,
+    goodHash: null,
+    badHash: null,
+    currentMidpoint: null,
+    eliminatedHashes: new Set<string>(),
+    suspectedHash: null,
+    history: []
+  });
+
+  // Recovery
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_BISECT);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setBisect({
+          ...parsed,
+          eliminatedHashes: new Set<string>(parsed.eliminatedHashes)
+        });
+      } catch (e) {
+        console.error("Failed to restore bisect session", e);
+      }
+    }
+  }, []);
+
+  // Save
+  useEffect(() => {
+    if (bisect.isActive) {
+      localStorage.setItem(STORAGE_KEY_BISECT, JSON.stringify({
+        ...bisect,
+        eliminatedHashes: Array.from(bisect.eliminatedHashes)
+      }));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_BISECT);
+    }
+  }, [bisect]);
+
+  const runBisectLogic = useCallback((good: string, bad: string, eliminated: Set<string>, currentState: Partial<BisectState>) => {
+    const { midpoint, suspected, remaining, estimatedSteps } = BisectEngine.calculateStep(commits, good, bad, eliminated);
+    setBisect(prev => ({
+      ...prev,
+      ...currentState,
+      currentMidpoint: midpoint,
+      suspectedHash: suspected,
+      remaining,
+      steps: estimatedSteps
+    }));
+    
+    if (suspected) onMidpointSelected(suspected);
+    else if (midpoint) onMidpointSelected(midpoint);
+  }, [commits, onMidpointSelected]);
+
+  const startBisect = (initialBadHash: string) => {
+    if (commits.length < 2) return;
+    const first = commits[commits.length - 1].hash;
+    const last = initialBadHash;
+    const newState: any = { isActive: true, goodHash: first, badHash: last, currentMidpoint: null, eliminatedHashes: new Set<string>(), suspectedHash: null, history: [] };
+    runBisectLogic(first, last, new Set<string>(), newState);
+  };
+
+  const markGood = () => {
+    if (!bisect.currentMidpoint) return;
+    const newEliminated = new Set<string>(bisect.eliminatedHashes);
+    const goodIdx = commits.findIndex(c => c.hash === bisect.goodHash);
+    const midIdx = commits.findIndex(c => c.hash === bisect.currentMidpoint);
+    for (let i = Math.min(goodIdx, midIdx); i <= Math.max(goodIdx, midIdx); i++) newEliminated.add(commits[i].hash);
+    const next = { goodHash: bisect.currentMidpoint, eliminatedHashes: newEliminated, history: [...bisect.history, { ...bisect, history: [] }] };
+    runBisectLogic(bisect.currentMidpoint!, bisect.badHash!, newEliminated, next);
+  };
+
+  const markBad = () => {
+    if (!bisect.currentMidpoint) return;
+    const newEliminated = new Set<string>(bisect.eliminatedHashes);
+    const badIdx = commits.findIndex(c => c.hash === bisect.badHash);
+    const midIdx = commits.findIndex(c => c.hash === bisect.currentMidpoint);
+    for (let i = Math.min(badIdx, midIdx); i <= Math.max(badIdx, midIdx); i++) newEliminated.add(commits[i].hash);
+    const next = { badHash: bisect.currentMidpoint, eliminatedHashes: newEliminated, history: [...bisect.history, { ...bisect, history: [] }] };
+    runBisectLogic(bisect.goodHash!, bisect.currentMidpoint!, newEliminated, next);
+  };
+
+  const resetBisect = useCallback(() => {
+    setBisect({ isActive: false, goodHash: null, badHash: null, currentMidpoint: null, eliminatedHashes: new Set<string>(), suspectedHash: null, history: [] });
+    localStorage.removeItem(STORAGE_KEY_BISECT);
+  }, []);
+
+  const bisectStatuses = useMemo(() => {
+    const statuses: Record<string, BisectStatus> = {};
+    if (bisect.goodHash) statuses[bisect.goodHash] = BisectStatus.GOOD;
+    if (bisect.badHash) statuses[bisect.badHash] = BisectStatus.BAD;
+    if (bisect.suspectedHash) statuses[bisect.suspectedHash] = BisectStatus.SUSPECTED;
+    bisect.eliminatedHashes.forEach(h => { if (!statuses[h]) statuses[h] = BisectStatus.SKIPPED; });
+    return statuses;
+  }, [bisect]);
+
+  return { bisect, bisectStatuses, startBisect, markGood, markBad, resetBisect };
+};

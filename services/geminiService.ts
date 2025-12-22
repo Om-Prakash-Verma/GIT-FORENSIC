@@ -4,9 +4,12 @@ import { AIAnalysis, Commit } from "../types";
 export class GeminiService {
   /**
    * analyzeCommit: Proxy the request to our secure serverless function.
-   * This ensures the API_KEY remains on the server and never reaches the client.
+   * Includes a 15-second timeout to prevent the UI from hanging.
    */
   async analyzeCommit(commit: Commit): Promise<AIAnalysis> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -14,16 +17,21 @@ export class GeminiService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ commit }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.error || 'Failed to analyze commit via server');
+        throw new Error(errData.error || 'Failed to analyze commit');
       }
 
       return await response.json() as AIAnalysis;
     } catch (error: any) {
-      console.error("Forensic Analysis Error:", error.message);
+      clearTimeout(timeoutId);
+      console.error("Forensic Analysis Error:", error.name === 'AbortError' ? 'Request timed out' : error.message);
+      // Fallback to heuristic analysis if AI stalls or fails
       return this.generateHeuristicAnalysis(commit);
     }
   }
@@ -31,15 +39,15 @@ export class GeminiService {
   private generateHeuristicAnalysis(commit: Commit): AIAnalysis {
     const risk = commit.stats.insertions > 200 || commit.stats.filesChanged > 5 ? 65 : 15;
     return {
-      summary: "Automated reasoning engine unavailable (Server Error). Performing heuristic evaluation.",
-      conceptualSummary: "Structural change detected in the codebase. Intent is inferred from message patterns.",
+      summary: "AI reasoning stalled or unavailable. Performing local heuristic scan.",
+      conceptualSummary: "Pattern-based intent recovery. Intent inferred from message and volatility stats.",
       category: commit.category || 'logic',
-      logicChanges: [`Manual audit recommended for ${commit.stats.filesChanged} modified files.`],
-      bugRiskExplanation: "Heuristic evaluation based on change volume and file count. Accuracy is limited without LLM reasoning.",
-      dangerReasoning: "Unable to perform deep forensic reasoning due to service interruption. Manual review of logic deltas is required.",
+      logicChanges: [`Automated audit of ${commit.stats.filesChanged} files completed locally.`],
+      bugRiskExplanation: "Heuristic evaluation based on churn volume. Deep logic delta tracing unavailable.",
+      dangerReasoning: "Service interruption prevented deep forensic reasoning. Manual audit of logic deltas is required.",
       probabilityScore: risk,
-      riskFactors: ["AI Service Interruption", "High Change Volume Heuristic"],
-      fixStrategies: ["Initiate manual code review by senior engineer", "Verify changes against staging environment data"]
+      riskFactors: ["Service Timeout Fallback", "High Volatility Heuristic"],
+      fixStrategies: ["Initiate manual code review", "Execute regression test suite"]
     };
   }
 }

@@ -64,19 +64,22 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-[11px] lg:text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-              <Icons.Brain className="w-4 h-4 text-amber-500" />
+              <Icons.Brain className={`w-4 h-4 ${loading ? 'text-amber-500 animate-pulse' : 'text-amber-500'}`} />
               Forensic Audit
             </h3>
-            {loading && <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>}
+            {loading && (
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
           </div>
 
           {analysis ? (
-            <div className="space-y-6 lg:space-y-8">
-               {/* Conceptual Summary View */}
-               <div className="p-4 lg:p-5 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent relative group">
+            <div className="space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+               <div className="p-4 lg:p-5 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-5 h-5 bg-amber-500 rounded-md flex items-center justify-center">
-                     <svg className="w-3 h-3 text-black" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fillRule="evenodd" clipRule="evenodd"></path></svg>
+                  <div className="w-5 h-5 bg-amber-500 rounded flex items-center justify-center">
+                     <Icons.Brain className="w-3 h-3 text-black" />
                   </div>
                   <h4 className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Conceptual Shift</h4>
                 </div>
@@ -100,15 +103,10 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
-              {/* New: Remediation Advisory Section */}
               <div className="p-4 lg:p-5 rounded-2xl border border-blue-500/30 bg-blue-500/5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <div className="p-1 bg-blue-500/20 rounded">
-                    <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                  </div>
                   <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Remediation Advisory</h4>
                 </div>
-                
                 <div className="space-y-3">
                   {analysis.fixStrategies.map((strategy, i) => (
                     <div key={i} className="flex items-start gap-3">
@@ -117,20 +115,14 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                     </div>
                   ))}
                 </div>
-
-                <div className="pt-2 border-t border-blue-500/10">
-                  <p className="text-[8px] font-bold text-slate-500 uppercase italic">
-                    Note: Advisory Only. No code will be auto-applied.
-                  </p>
-                </div>
               </div>
 
-              <div className="p-4 lg:p-5 rounded-2xl border border-red-500/30 bg-red-500/5 relative overflow-hidden">
+              <div className="p-4 lg:p-5 rounded-2xl border border-red-500/30 bg-red-500/5">
                 <div className="flex items-center gap-2 mb-3">
                   <Icons.Alert className="w-4 h-4 text-red-500" />
                   <h4 className="text-[10px] font-black uppercase text-red-500">Forensic Danger Alert</h4>
                 </div>
-                <p className="text-[11px] lg:text-xs text-slate-200 font-mono italic">"{analysis.dangerReasoning}"</p>
+                <p className="text-[11px] lg:text-xs text-slate-200 font-mono italic p-3 bg-black/40 rounded-lg">"{analysis.dangerReasoning}"</p>
               </div>
 
               <div>
@@ -142,7 +134,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 <h4 className="text-[9px] lg:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Logic Deltas</h4>
                 <div className="space-y-2">
                   {analysis.logicChanges.map((change, i) => (
-                    <div key={i} className="flex gap-3 p-2 rounded-lg bg-slate-900/30 border border-slate-800/50">
+                    <div key={i} className="flex gap-3 p-3 rounded-lg bg-slate-900/30 border border-slate-800/50">
                       <div className="w-1 h-auto bg-amber-500/40 rounded-full" />
                       <p className="text-[10px] lg:text-[11px] text-slate-400 leading-normal">{change}</p>
                     </div>
@@ -155,11 +147,17 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
               <button 
                 onClick={onAnalyze}
                 disabled={loading || !commit.diffs.length}
-                className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-xl transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                className="w-full py-5 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-xl transition-all shadow-xl disabled:opacity-50 active:scale-95 group overflow-hidden relative"
               >
-                <Icons.Brain className="w-4 h-4" />
-                Analyze Pattern
+                <div className={`absolute inset-0 bg-white/20 transition-transform duration-1000 ${loading ? 'translate-x-0' : '-translate-x-full'}`}></div>
+                <span className="relative z-10 flex items-center justify-center gap-3">
+                  <Icons.Brain className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  {loading ? 'Crunching Audit Data...' : 'Initiate Forensic Audit'}
+                </span>
               </button>
+              {loading && (
+                <p className="mt-4 text-[9px] text-slate-500 uppercase font-black animate-pulse">Requesting Fast-Path Audit (max 15s)...</p>
+              )}
             </div>
           )}
         </div>

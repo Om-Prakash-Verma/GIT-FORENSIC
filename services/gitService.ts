@@ -17,38 +17,45 @@ export class GitService {
     return this.fetchGitHubRepository(pathOrUrl);
   }
 
+  /**
+   * Calculates a heuristic volatility score (0-100)
+   */
   static calculateVolatility(stats: { insertions: number, deletions: number, filesChanged: number }, category: CommitCategory): number {
     let score = 0;
     const totalLines = stats.insertions + stats.deletions;
     
-    // Weight by volume
-    score += Math.min(totalLines / 20, 40); 
+    // Weight by volume: Logarithmic scaling to avoid overflow for massive commits
+    score += Math.min(Math.log10(totalLines + 1) * 15, 45); 
+    
     // Weight by file spread
-    score += Math.min(stats.filesChanged * 5, 30);
-    // Weight by category
+    score += Math.min(stats.filesChanged * 4, 35);
+    
+    // Weight by conceptual category risk
     const categoryWeights: Record<CommitCategory, number> = {
-      logic: 30,
-      fix: 25,
-      feat: 20,
-      refactor: 15,
-      dependency: 10,
-      chore: 5,
+      logic: 25,
+      fix: 20,
+      feat: 15,
+      refactor: 10,
+      dependency: 15, // High dependency change risk
+      chore: 2,
       style: 0
     };
     score += categoryWeights[category] || 0;
 
-    return Math.min(Math.max(score, 5), 100);
+    // Normalizing and capping
+    return Math.min(Math.max(Math.round(score), 5), 100);
   }
 
   static classifyHeuristically(message: string, files: string[] = []): CommitCategory {
     const msg = message.toLowerCase();
     
     // Pattern Matchers
-    if (msg.includes('fix') || msg.includes('patch') || msg.includes('bug')) return 'fix';
-    if (msg.includes('feat') || msg.includes('add')) return 'feat';
-    if (msg.includes('refactor') || msg.includes('clean') || msg.includes('move')) return 'refactor';
-    if (msg.includes('deps') || msg.includes('dependency') || files.some(f => f.includes('lock') || f.includes('package.json'))) return 'dependency';
+    if (msg.includes('fix') || msg.includes('patch') || msg.includes('bug') || msg.includes('issue')) return 'fix';
+    if (msg.includes('feat') || msg.includes('add') || msg.includes('implement')) return 'feat';
+    if (msg.includes('refactor') || msg.includes('clean') || msg.includes('move') || msg.includes('simplify')) return 'refactor';
+    if (msg.includes('deps') || msg.includes('dependency') || files.some(f => f.includes('lock') || f.includes('package.json') || f.includes('cargo.toml'))) return 'dependency';
     if (msg.includes('style') || msg.includes('format') || msg.includes('lint') || msg.includes('prettier')) return 'style';
+    if (msg.includes('chore') || msg.includes('build') || msg.includes('release')) return 'chore';
     
     return 'logic';
   }
@@ -91,7 +98,8 @@ export class GitService {
           message,
           parents: c.parents.map((p: any) => p.sha),
           category,
-          volatilityScore: 10, // Default until hydrated
+          // Initial volatility based on message/category alone, updated during hydration
+          volatilityScore: category === 'logic' ? 40 : 15,
           stats: { insertions: 0, deletions: 0, filesChanged: 0 },
           diffs: []
         };

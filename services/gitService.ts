@@ -49,12 +49,19 @@ export class GitService {
     try {
       // 1. Fetch Repository Metadata
       const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`);
-      if (!metaResponse.ok) throw new Error("Could not access public GitHub repository.");
+      if (!metaResponse.ok) {
+        if (metaResponse.status === 403) throw new Error("GitHub API rate limit exceeded. Unauthenticated requests are limited to 60/hr.");
+        if (metaResponse.status === 404) throw new Error("Repository not found. Ensure it is a public repository.");
+        throw new Error(`GitHub metadata fetch failed: ${metaResponse.statusText}`);
+      }
       const metaData = await metaResponse.json();
 
-      // 2. Fetch Commits History (Increased to 100 for better bisection)
+      // 2. Fetch Commits History
       const commitsResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits?per_page=100`);
-      if (!commitsResponse.ok) throw new Error("Failed to fetch commit history from GitHub.");
+      if (!commitsResponse.ok) {
+        if (commitsResponse.status === 403) throw new Error("GitHub API rate limit exceeded during commit fetch.");
+        throw new Error(`Failed to fetch commit history: ${commitsResponse.statusText}`);
+      }
       const commitsData = await commitsResponse.json();
 
       const commits: Commit[] = await Promise.all(commitsData.map(async (c: any) => {
@@ -84,6 +91,9 @@ export class GitService {
         commits
       };
     } catch (err: any) {
+      if (err.message.includes('Failed to fetch')) {
+        throw new Error("Network Error: Could not reach GitHub API. Check your connection or CORS settings.");
+      }
       throw new Error(`GitHub Sync Error: ${err.message}`);
     }
   }
@@ -99,32 +109,37 @@ export class GitService {
     
     const repoPath = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
     
-    const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
-    if (!response.ok) throw new Error("Failed to fetch commit details.");
-    const data = await response.json();
+    try {
+      const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
+      if (!response.ok) throw new Error(`Failed to fetch commit details: ${response.statusText}`);
+      const data = await response.json();
 
-    const diffs: FileDiff[] = data.files.map((file: any) => ({
-      path: file.filename,
-      changes: file.status === 'renamed' ? 'modified' : file.status,
-      oldContent: '', // Placeholder, as we use patches
-      newContent: '',
-      patch: file.patch || "",
-      hunks: [],
-      stats: {
-        additions: file.additions,
-        deletions: file.deletions
-      }
-    }));
+      const diffs: FileDiff[] = data.files.map((file: any) => ({
+        path: file.filename,
+        changes: file.status === 'renamed' ? 'modified' : file.status,
+        oldContent: '', 
+        newContent: '',
+        patch: file.patch || "",
+        hunks: [],
+        stats: {
+          additions: file.additions,
+          deletions: file.deletions
+        }
+      }));
 
-    return {
-      ...commit,
-      stats: {
-        insertions: data.stats.additions,
-        deletions: data.stats.deletions,
-        filesChanged: data.files.length
-      },
-      diffs
-    };
+      return {
+        ...commit,
+        stats: {
+          insertions: data.stats.additions,
+          deletions: data.stats.deletions,
+          filesChanged: data.files.length
+        },
+        diffs
+      };
+    } catch (err) {
+      console.error("Hydration failure:", err);
+      return commit;
+    }
   }
 
   private static generateRealisticHistory(): Commit[] {

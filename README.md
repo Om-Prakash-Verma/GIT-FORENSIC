@@ -7,57 +7,91 @@
 
 > **"Code reveals what happened. Forensics reveals why it matters."**
 
-**Git Time-Travel Debugger** is a production-grade developer tool built for deep root-cause analysis, semantic audit, and visual history exploration. It transforms raw Git diffs into actionable architectural insights using Gemini 3's advanced reasoning.
+**Git Time-Travel Debugger** is an advanced developer utility designed for high-stakes root-cause analysis, architectural audit, and semantic version control exploration. By integrating **Gemini 3 Pro** reasoning with **D3.js** data visualization, it transforms standard Git history into a multidimensional forensic map.
 
 ---
 
-## 💎 The Forensic Toolkit
+## 💎 Core Forensic Features
 
-### 1. 🧠 Intelligent Logic Auditing
-The **Forensic Reasoning Engine** (powered by Gemini 3 Pro/Flash) performs deep semantic audits:
-- **Multi-Model Strategy**: Select high-reasoning **Thinking** models (Pro) for complex architectural pivots, or high-speed **Flash** models for rapid triage.
-- **Predictive Failure Simulation**: Predicts exactly which component or flow is most likely to break first if a regression exists.
-- **Hidden Coupling Detection**: Surfaces non-obvious dependencies (e.g., environment variables, shared state) that may cause side-effects.
-- **Risk Score HUD**: Real-time regression risk profiling (0-100%).
+### 1. 🧠 AI Forensic Reasoning Engine
+The heart of the suite is a tiered AI pipeline that performs deep semantic inspection of every changeset.
 
-### 2. 🕸 Visual Impact Graph
-A dynamic D3.js force-directed graph that maps the "blast radius" of every commit:
-- **Modified vs. Impacted**: Distinguishes between explicitly edited files and potentially affected imports.
-- **Clustering**: Intuitively group related modules to visualize code locality.
+*   **Multi-Model Intelligence**: 
+    *   **Gemini 3 Pro (Thinking Mode)**: Utilizes a dedicated reasoning budget to perform complex architectural audits, identifying non-obvious logic pivots.
+    *   **Gemini 3 Flash**: Optimized for high-speed triage and rapid history scrubbing.
+*   **Predictive Failure Simulation**: Unlike standard linters, the engine predicts the specific component or state transition most likely to fail first ("First Break" analysis).
+*   **Hidden Coupling Detector**: Surfaces dependencies that aren't visible in import statements, such as environment variable shifts, shared global state, or distant database schema expectations.
+*   **Structural Risk Profiling**: Generates a 0-100% **Regression Risk Score** based on churn volume, logic complexity, and file volatility.
+
+### 2. 🕸 Visual Impact Graph (Blast Radius)
+A dynamic, force-directed D3.js graph that visualizes the "ripple effect" of a commit across the codebase.
+
+*   **Node Categorization**: Distinguishes between **Modified Nodes** (files edited) and **Impacted Nodes** (files likely affected via imports or proximity).
+*   **Dependency Mapping**: Uses regex-based import parsing to map actual file relationships in real-time.
+*   **Entropy Clustering**: Groups related modules based on directory structure and import frequency to show "code locality."
 
 ### 3. ⚡️ Visual Git Bisect HUD
-Accelerate bug-hunting with a visually assisted binary search:
-- **Automated Midpoint Calculation**: Mathematically optimal search space reduction.
-- **Visual Range Marking**: Clearly see "Good" and "Bad" boundaries in the timeline.
+A mathematically optimized interface for hunting regressions in large histories.
+
+*   **Binary Search Optimization**: Automatically calculates the search space midpoint to reduce the number of steps required to find a bug.
+*   **Forensic Marking**: Tag commits as "Good" or "Bad" to visually eliminate massive ranges of history instantly.
+*   **Persistence**: Bisect sessions are saved to local storage, allowing you to resume complex hunts after a browser restart.
+
+### 4. 📈 Volatility Heatmap Timeline
+A custom SVG-based timeline that provides a high-level overview of repo health.
+
+*   **Churn Visualization**: Uses a neighborhood-averaging algorithm to show "spikes" in file volatility.
+*   **Category Filtering**: Instantly toggle visibility for `feat`, `fix`, `logic`, or `refactor` commits to focus on high-signal changes.
+*   **Active Tracking**: Syncs the viewport automatically to ensure the selected node is always centered.
+
+### 5. 🔍 High-Fidelity Diff Viewer
+A specialized source viewer optimized for technical audits.
+
+*   **Semantic Highlighting**: Categorizes hunks based on the type of change (Added/Removed/Modified).
+*   **Sticky Context**: File headers and hunk markers remain visible during long scrolls, ensuring you never lose track of which module you are auditing.
 
 ---
 
 ## 🏛 Technical Architecture
 
-### **AI Dispatch Layer (`api/analyze.ts`)**
-- **Tiered Execution**: Attempts high-fidelity reasoning with Gemini 3 Pro (Thinking) before falling back to latency-optimized Flash models.
-- **Thinking Configuration**: Explicitly tuned `thinkingBudget` (16k) and `maxOutputTokens` (20k) to ensure deep reasoning without truncated JSON responses.
-- **Structured JSON Schema**: Enforces strict OpenAI-compatible response schemas for reliable UI hydration.
+### **AI Dispatch Tier (`api/analyze.ts`)**
+*   **Tiered Fallback**: Attempts analysis with **Gemini 3 Pro** (4k thinking budget / 30k output ceiling) for maximum reasoning depth, falling back to **Gemini 3 Flash** if latency limits are reached.
+*   **Context Optimization**: Intelligently truncates diff payloads to ensure the most critical lines of a patch are prioritized within the LLM's context window.
+*   **Schema Enforcement**: Strictly validates AI output against a custom `AIAnalysis` interface to prevent UI hydration failures.
 
-### **State Management (`hooks/useGitRepo.ts`)**
-- **Lazy Context Loading**: Commits are hydrated with full diffs only when selected.
-- **State Guarding**: Prevents race conditions and state clearing during parallel hydration tasks, ensuring AI analysis remains visible during background operations.
+### **State Orchestration Layer (`hooks/useGitRepo.ts`)**
+*   **Lazy Hydration**: Initially loads lightweight metadata, only fetching heavy diff patches and impact maps when a specific commit is selected to save bandwidth.
+*   **State Guarding**: Implements a `currentHashRef` locking mechanism to prevent race conditions where background hydration might overwrite a fresh AI analysis.
 
----
-
-## 🚀 Deployment
-
-### **Environment Variables**
-```env
-API_KEY=your_gemini_api_key_here
-```
-
-### **Quick Start**
-1. **Clone**: `git clone ...`
-2. **Install**: `npm install`
-3. **Run**: `npm run dev`
-4. **Audit**: Paste a public GitHub URL to begin the forensic scan.
+### **Dependency Analysis (`services/dependencyService.ts`)**
+*   **Regex-Based Trace**: Scans patches for `import`, `require`, and `from` keywords to build a real-time dependency tree without needing a full build environment.
 
 ---
 
-*Designed for senior software architects requiring absolute precision in root-cause investigation.*
+## 🚀 Deployment & Setup
+
+### **Environment Requirements**
+*   **Node.js**: v18+ 
+*   **API Key**: A valid Google Gemini API Key.
+
+### **Configuration**
+1. Clone the repository.
+2. Create a `.env` or set the environment variable:
+   ```env
+   API_KEY=your_gemini_api_key_here
+   ```
+3. Install dependencies: `npm install`
+4. Start the forensic suite: `npm run dev`
+
+---
+
+## 🛠 Usage Protocol
+1.  **Import**: Paste a public GitHub URL into the landing page.
+2.  **Scrub**: Use the Timeline to find areas of high volatility (gold glow).
+3.  **Audit**: Select a commit and click "Run Forensic Audit." Select "Gemini 3 Pro" for architectural changes.
+4.  **Trace**: Use the Impact Graph to see which distant files might break because of the current change.
+5.  **Bisect**: If a bug is found, use the search icon in the sidebar to enter Bisect mode and isolate the culprit.
+
+---
+
+*Designed for senior software architects and security researchers who require absolute precision in their version control workflows.*

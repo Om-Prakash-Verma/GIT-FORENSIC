@@ -1,26 +1,89 @@
 
-# Git Time-Travel Debugger (Forensic Suite)
+# 🕵️‍♂️ Git Time-Travel Debugger: Forensic Suite
 
-A production-grade developer tool for visual commit history exploration, AI-powered logic analysis, and visual `git bisect` functionality.
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![Gemini AI](https://img.shields.io/badge/Gemini%20AI-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![D3.js](https://img.shields.io/badge/D3.js-F9A03C?style=for-the-badge&logo=d3.js&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-## Core Features
-- **Visual Commit Timeline**: Interactive D3.js powered visualization of repository history with search range highlighting.
-- **Automated Visual Bisect**: UI-driven binary search to locate regressions with log2 efficiency.
-- **Forensic AI Reasoning**: Integrates Gemini 3 Pro to perform deep logic audits on every commit, predicting regressions before they're confirmed.
-- **Binary Search HUD**: Real-time progress tracking, estimated steps, and commit elimination status.
-- **Side-by-Side Diff Engine**: High-fidelity line-by-line diffs with jump-to-file navigation.
+> **"Traditional git logs are for historians. Git Forensics is for detectives."**
 
-## Architecture
-- **Frontend**: React (SPA), Tailwind CSS, D3.js.
-- **Git Layer**: `GitService` abstraction (Mocked for browser environment, ready for Node.js `spawn` integration).
-- **AI Layer**: `GeminiService` using Google's Generative AI SDK with structured JSON schemas.
-- **Design Language**: "Black and Gold" Forensic HUD — focusing on high-contrast readability and enterprise aesthetics.
+**Git Time-Travel Debugger** is a production-grade developer tool designed for senior engineers performing deep root-cause analysis. It transforms the linear history of a repository into a multi-dimensional workspace for locating regressions, auditing logic changes, and understanding complex deltas through the lens of Artificial Intelligence.
 
-## Setup Instructions
-1. Ensure `process.env.API_KEY` is configured for Google Gemini API access.
-2. Run `npm install` (if using a local Node environment).
-3. Start the application.
-4. Input a repository path to begin the forensic audit.
+---
 
-## Developer Note
-This tool is designed for senior engineers performing deep root-cause analysis. It prioritizes data density and reasoning over simple "diffing".
+## 🏛 Core Forensic Pillars
+
+### 1. 🔍 The AI Logic Audit (Powered by Gemini 3)
+Traditional diffs show *what* changed. Our AI Logic Audit tells you *why* it matters.
+- **Micro-Logic Detection**: Automatically identifies changes in loops, async flows, and state mutations.
+- **Regression Prediction**: Gemini 3 Pro performs a forensic analysis to predict edge cases and potential race conditions before you even run the code.
+- **Probability Scoring**: Each commit is assigned a 0-100% "Bug Probability Score" based on complexity, change volume, and heuristic risk factors.
+
+### 2. ⚡️ Visual Binary Search (Git Bisect HUD)
+Manual `git bisect` is error-prone. Our HUD visualizes the search space.
+- **Log2 Efficiency**: Automatically calculates the optimal midpoint in your history.
+- **Commit Elimination**: Visually grays out eliminated commits as you mark "Good" or "Bad" nodes.
+- **Suspect Isolation**: Pins the specific "Suspected" commit once the search space collapses to a single node.
+
+### 3. 🕸 Interactive History Timeline
+- **D3.js Powered**: A high-performance SVG timeline that handles dense commit histories with ease.
+- **Contextual Highlighting**: Visualizes the active search range during bisect operations.
+- **One-Click Navigation**: Instantly jump between snapshots to see the repository as it existed in that exact moment.
+
+---
+
+## 🛠 Technical Architecture
+
+### **The Intelligence Layer (`GeminiService`)**
+Utilizes a sophisticated multi-model fallback strategy:
+- **Primary**: `gemini-3-pro-preview` for high-reasoning logic audits and "Thinking" capabilities.
+- **Fallback**: `gemini-3-flash-preview` for rapid analysis if throughput limits are reached.
+- **Heuristic Engine**: A local fallback that analyzes commit stats (insertions/deletions) when offline.
+
+### **The Git Simulation Engine (`GitService`)**
+A polymorphic service that handles:
+- **Remote GitHub Fetching**: Real-time integration with the GitHub REST API (v3) to pull public repository metadata and commit diffs.
+- **Local Simulation**: A high-fidelity mock engine for demonstration purposes, mimicking large enterprise repositories.
+
+### **The UI/UX: "Black & Gold HUD"**
+Designed with a "Cyber-Forensic" aesthetic:
+- **High Contrast**: Deep blacks (`#020617`) and Amber/Gold highlights for critical data.
+- **Data Density**: Optimized for large monitors while remaining fully responsive for tablet-based "on-the-go" audits.
+- **Visual Feedback**: Real-time animations for hydration (fetching diffs) and AI processing.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Gemini API Key**: Requires an active `process.env.API_KEY`.
+- **Connectivity**: High-speed internet is recommended for GitHub hydration.
+
+### Usage
+1. **Import**: Paste a GitHub URL or a local path into the entry portal.
+2. **Explore**: Scroll through the timeline to find the general area of interest.
+3. **Audit**: Select a commit and click **"Run Logic Audit"** to engage the AI detective.
+4. **Bisect**: If a bug is confirmed, click the **Search** icon to begin a Visual Bisect. Mark commits until the culprit is isolated.
+
+---
+
+## 📊 Project Structure
+```text
+/src
+  ├── services/         # Logic cores (AI, Git, Parsers)
+  ├── components/       # Atomic UI elements (Timeline, Diff, Audit)
+  ├── types.ts          # Strict TypeScript definitions
+  ├── constants.tsx     # Theme colors and SVG icons
+  └── api/              # Secure serverless endpoints
+```
+
+## 🔮 Roadmap
+- [ ] **Multi-Branch Correlation**: Compare logic flows across different branches.
+- [ ] **Dependency Graph Integration**: See how a commit affects downstream modules.
+- [ ] **Team Collaboration**: Export forensic reports as shared URLs for PR reviews.
+
+---
+
+*Built with precision for the modern software detective.*

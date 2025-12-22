@@ -88,12 +88,16 @@ const App: React.FC = () => {
     }
   };
 
+  // Effect to handle hydration (loading diffs) and clearing stale analysis
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
     
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
     const commit = commits[commitIdx];
     if (!commit) return;
+
+    // Reset analysis when moving to a new commit to avoid showing stale data
+    setAnalysis(null);
 
     const prepareCommit = async () => {
       if (commit.diffs.length === 0 && metadata.path.includes('github.com')) {
@@ -115,18 +119,31 @@ const App: React.FC = () => {
         if (!activeFilePath || !activeCommit.diffs.find(d => d.path === activeFilePath)) {
           setActiveFilePath(activeCommit.diffs[0].path);
         }
-        setIsAnalyzing(true);
-        setAnalysis(null);
-        const result = await gemini.analyzeCommit(activeCommit);
-        setAnalysis(result);
-        setIsAnalyzing(false);
       } else {
         setActiveFilePath(null);
       }
     };
 
     prepareCommit();
-  }, [selectedHash, metadata, gemini, commits]);
+  }, [selectedHash, metadata]);
+
+  // Explicit Analysis Handler triggered by button click to save costs
+  const handleAnalyzeCommit = async () => {
+    if (!selectedHash || commits.length === 0 || isAnalyzing) return;
+    
+    const commit = commits.find(c => c.hash === selectedHash);
+    if (!commit || commit.diffs.length === 0) return;
+
+    setIsAnalyzing(true);
+    try {
+      const result = await gemini.analyzeCommit(commit);
+      setAnalysis(result);
+    } catch (err) {
+      console.error("Analysis failed", err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const startBisect = () => {
     if (!selectedHash || commits.length < 2) return;
@@ -388,7 +405,8 @@ const App: React.FC = () => {
              <CommitInfo 
                commit={currentCommit} 
                analysis={analysis} 
-               loading={isAnalyzing || isHydrating} 
+               loading={isAnalyzing || isHydrating}
+               onAnalyze={handleAnalyzeCommit}
              />
           </div>
         </div>

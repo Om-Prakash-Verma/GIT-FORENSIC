@@ -7,9 +7,10 @@ interface CommitInfoProps {
   commit: Commit | null;
   analysis: AIAnalysis | null;
   loading: boolean;
+  onAnalyze: () => void;
 }
 
-const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading }) => {
+const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAnalyze }) => {
   if (!commit) return null;
 
   const getScoreColor = (score: number) => {
@@ -155,12 +156,22 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading }) =>
                </div>
              </div>
           ) : (
-            <div className="py-20 flex flex-col items-center justify-center text-center opacity-30 px-6">
-              <div className="w-12 h-12 rounded-full border border-dashed border-slate-500 mb-4 flex items-center justify-center">
-                 <Icons.Brain className="w-6 h-6" />
+            <div className="py-12 flex flex-col items-center justify-center text-center px-6">
+              <div className="w-16 h-16 rounded-3xl bg-amber-500/5 border border-dashed border-amber-500/30 mb-6 flex items-center justify-center">
+                 <Icons.Brain className="w-8 h-8 text-amber-500/40" />
               </div>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-500">Awaiting Signal</p>
-              <p className="text-[10px] text-slate-600 mt-2">Select a commit to perform forensic logic analysis.</p>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-6">Forensic Data Available</p>
+              
+              <button 
+                onClick={onAnalyze}
+                disabled={!commit || commit.diffs.length === 0}
+                className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-xl transition-all shadow-[0_10px_20px_rgba(251,191,36,0.1)] active:scale-95 disabled:opacity-30 flex items-center justify-center gap-3"
+              >
+                <Icons.Brain className="w-4 h-4" />
+                Run Logic Audit
+              </button>
+              
+              <p className="text-[9px] text-slate-600 mt-4 uppercase tracking-tighter">AI Reasoning requires manual trigger to optimize throughput</p>
             </div>
           )}
         </div>

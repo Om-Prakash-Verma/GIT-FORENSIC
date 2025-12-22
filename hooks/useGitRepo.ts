@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Commit, RepositoryMetadata, AIAnalysis, ImpactData } from '../types.ts';
 import { GitService } from '../services/gitService.ts';
 import { GeminiService } from '../services/geminiService.ts';
@@ -25,6 +25,7 @@ export const useGitRepo = () => {
   const [selectedModel, setSelectedModel] = useState<string>('auto');
 
   const gemini = useMemo(() => new GeminiService(), []);
+  const lastProcessedHash = useRef<string | null>(null);
 
   // Persistence: Recovery
   useEffect(() => {
@@ -80,27 +81,40 @@ export const useGitRepo = () => {
     setImpactData(null);
     setRepoPath('');
     setHydrationError(null);
+    lastProcessedHash.current = null;
   }, []);
 
+  // Sync effect for selected hash changes
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
+    
+    // Only clear analysis if we've actually switched to a different commit
+    if (lastProcessedHash.current !== selectedHash) {
+      console.log(`[useGitRepo] Context switching to ${selectedHash.substring(0, 8)}`);
+      setAnalysis(null);
+      setImpactData(null);
+      setHydrationError(null);
+      lastProcessedHash.current = selectedHash;
+    }
+
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
     const commit = commits[commitIdx];
     if (!commit) return;
 
-    setAnalysis(null);
-    setImpactData(null);
-    setHydrationError(null);
-
     const prepareCommit = async () => {
       let activeCommit = commit;
+      
+      // Lazy-load diffs if missing
       if (commit.diffs.length === 0 && metadata.path.includes('github.com')) {
         setIsHydrating(true);
         try {
           activeCommit = await GitService.hydrateCommitDiffs(metadata.path, commit);
-          const newCommits = [...commits];
-          newCommits[commitIdx] = activeCommit;
-          setCommits(newCommits);
+          setCommits(prev => {
+            const next = [...prev];
+            const idx = next.findIndex(c => c.hash === selectedHash);
+            if (idx !== -1) next[idx] = activeCommit;
+            return next;
+          });
         } catch (err: any) {
           setHydrationError(err.message);
         } finally {
@@ -108,7 +122,8 @@ export const useGitRepo = () => {
         }
       }
 
-      if (activeCommit.diffs.length > 0) {
+      // Generate impact graph if diffs are available and graph is missing
+      if (activeCommit.diffs.length > 0 && !impactData) {
         setIsMappingImpact(true);
         try {
           const impact = await DependencyService.buildImpactGraph(metadata.path, activeCommit.hash, activeCommit.diffs);
@@ -120,9 +135,11 @@ export const useGitRepo = () => {
         }
       }
     };
-    prepareCommit();
-  }, [selectedHash, metadata?.path]);
 
+    prepareCommit();
+  }, [selectedHash, metadata?.path, commits.length]);
+
+  // Handle active file selection
   useEffect(() => {
     const commit = commits.find(c => c.hash === selectedHash);
     if (commit && commit.diffs.length > 0) {
@@ -135,16 +152,21 @@ export const useGitRepo = () => {
   }, [selectedHash, commits.length]);
 
   const analyzeCommit = async () => {
-    if (!selectedHash || commits.length === 0 || isAnalyzing) return;
     const commit = commits.find(c => c.hash === selectedHash);
-    if (!commit || commit.diffs.length === 0) return;
+    if (!commit || commit.diffs.length === 0 || isAnalyzing) {
+      console.warn("[useGitRepo] Analysis skipped: no commit context or already analyzing");
+      return;
+    }
 
     setIsAnalyzing(true);
     try {
+      console.log(`[useGitRepo] Requesting audit for ${selectedHash} using model ${selectedModel}`);
       const result = await gemini.analyzeCommit(commit, selectedModel);
+      console.log("[useGitRepo] Audit result received, updating state...");
       setAnalysis(result);
       return true;
     } catch (err) {
+      console.error("[useGitRepo] Analysis state update failed:", err);
       return false;
     } finally {
       setIsAnalyzing(false);

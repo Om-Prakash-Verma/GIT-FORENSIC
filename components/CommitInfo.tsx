@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Commit, AIAnalysis } from '../types.ts';
 import { Icons, COLORS } from '../constants.tsx';
 
@@ -15,6 +15,13 @@ interface CommitInfoProps {
 const CommitInfo: React.FC<CommitInfoProps> = ({ 
   commit, analysis, loading, onAnalyze, selectedModel, setSelectedModel 
 }) => {
+  // Debug effect to track state changes in the UI component
+  useEffect(() => {
+    if (analysis) {
+      console.log("[CommitInfo] Received analysis data update:", analysis);
+    }
+  }, [analysis]);
+
   if (!commit) return null;
 
   const currentCategory = analysis?.category || commit.category || 'logic';
@@ -59,7 +66,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
         </div>
       </div>
 
-      <div className="p-6 lg:p-8 space-y-8 flex-1 pb-24">
+      <div className="p-6 lg:p-8 space-y-8 flex-1 pb-24 min-h-0">
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Impact', val: `+${commit.stats.insertions}`, color: 'text-green-500' },
@@ -120,57 +127,65 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
                 </div>
               </div>
 
-              <div className="p-5 rounded-3xl border border-purple-500/20 bg-purple-500/5 space-y-4">
-                <div className="flex items-center gap-3">
-                   <div className="p-1.5 bg-purple-500/20 rounded-lg">
-                    <Icons.Alert className="w-3.5 h-3.5 text-purple-400" />
-                  </div>
-                  <h4 className="text-[9px] font-black uppercase text-purple-400 tracking-widest">Failure Path Simulation</h4>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed font-medium bg-black/40 p-4 rounded-2xl border border-white/5">
-                  <span className="text-purple-400 font-black mr-2">FIRST BREAK:</span>
-                  {analysis.failureSimulation}
-                </p>
-              </div>
-
-              <div className="p-5 rounded-3xl border border-cyan-500/20 bg-cyan-500/5 space-y-4">
-                <div className="flex items-center gap-3">
-                   <div className="p-1.5 bg-cyan-500/20 rounded-lg text-cyan-400">
-                    <Icons.Impact className="w-3.5 h-3.5" />
-                  </div>
-                  <h4 className="text-[9px] font-black uppercase text-cyan-400 tracking-widest">Hidden Coupling Scan</h4>
-                </div>
-                <div className="space-y-2">
-                  {analysis.hiddenCouplings.map((coupling, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-black/40 border border-white/5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
-                      <p className="text-[10px] text-slate-300 font-mono font-medium tracking-tight">{coupling}</p>
+              {analysis.failureSimulation && (
+                <div className="p-5 rounded-3xl border border-purple-500/20 bg-purple-500/5 space-y-4">
+                  <div className="flex items-center gap-3">
+                     <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                      <Icons.Alert className="w-3.5 h-3.5 text-purple-400" />
                     </div>
-                  ))}
+                    <h4 className="text-[9px] font-black uppercase text-purple-400 tracking-widest">Failure Path Simulation</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-medium bg-black/40 p-4 rounded-2xl border border-white/5">
+                    <span className="text-purple-400 font-black mr-2">FIRST BREAK:</span>
+                    {analysis.failureSimulation}
+                  </p>
                 </div>
-              </div>
+              )}
 
-              <div className="p-5 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-5">
-                <h4 className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Remediation Protocol</h4>
-                <div className="space-y-3">
-                  {analysis.fixStrategies.map((strategy, i) => (
-                    <div key={i} className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors cursor-default">
-                      <span className="text-blue-500 font-mono text-xs font-black">0{i + 1}</span>
-                      <p className="text-[11px] text-slate-300 font-medium leading-relaxed">{strategy}</p>
+              {analysis.hiddenCouplings && analysis.hiddenCouplings.length > 0 && (
+                <div className="p-5 rounded-3xl border border-cyan-500/20 bg-cyan-500/5 space-y-4">
+                  <div className="flex items-center gap-3">
+                     <div className="p-1.5 bg-cyan-500/20 rounded-lg text-cyan-400">
+                      <Icons.Impact className="w-3.5 h-3.5" />
                     </div>
-                  ))}
+                    <h4 className="text-[9px] font-black uppercase text-cyan-400 tracking-widest">Hidden Coupling Scan</h4>
+                  </div>
+                  <div className="space-y-2">
+                    {analysis.hiddenCouplings.map((coupling, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-black/40 border border-white/5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
+                        <p className="text-[10px] text-slate-300 font-mono font-medium tracking-tight">{coupling}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="p-5 rounded-3xl border border-red-500/20 bg-red-500/5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Icons.Alert className="w-4 h-4 text-red-500" />
-                  <h4 className="text-[9px] font-black uppercase text-red-500 tracking-widest">Primary Danger Reasoning</h4>
+              {analysis.fixStrategies && analysis.fixStrategies.length > 0 && (
+                <div className="p-5 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-5">
+                  <h4 className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Remediation Protocol</h4>
+                  <div className="space-y-3">
+                    {analysis.fixStrategies.map((strategy, i) => (
+                      <div key={i} className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors cursor-default">
+                        <span className="text-blue-500 font-mono text-xs font-black">0{i + 1}</span>
+                        <p className="text-[11px] text-slate-300 font-medium leading-relaxed">{strategy}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="p-4 bg-black/60 rounded-2xl border border-red-500/10">
-                  <p className="text-[11px] text-slate-200 font-mono italic leading-relaxed">"{analysis.dangerReasoning}"</p>
+              )}
+
+              {analysis.dangerReasoning && (
+                <div className="p-5 rounded-3xl border border-red-500/20 bg-red-500/5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Icons.Alert className="w-4 h-4 text-red-500" />
+                    <h4 className="text-[9px] font-black uppercase text-red-500 tracking-widest">Primary Danger Reasoning</h4>
+                  </div>
+                  <div className="p-4 bg-black/60 rounded-2xl border border-red-500/10">
+                    <p className="text-[11px] text-slate-200 font-mono italic leading-relaxed">"{analysis.dangerReasoning}"</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-3 pt-4 border-t border-white/5">
                 <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Technical Intent</h4>

@@ -23,26 +23,35 @@ export default async function handler(req: any, res: any) {
 
   const ai = new GoogleGenAI({ apiKey });
   
-  // Base stages for fallback
+  // Base stages for fallback - using official model identifiers from guidelines
   const allStages = [
     { model: 'gemini-3-pro-preview', useThinking: true },
     { model: 'gemini-3-pro-preview', useThinking: false },
     { model: 'gemini-3-flash-preview', useThinking: false },
-    { model: 'gemini-2.5-flash', useThinking: false }
+    { model: 'gemini-flash-latest', useThinking: false } // Fallback to standard Flash
   ];
 
   // If the user requested a specific model, we prioritize it
   let executionStages = allStages;
   if (requestedModel && requestedModel !== 'auto') {
-    const isPro = requestedModel.includes('pro');
+    // Mapping friendly names to API IDs
+    const modelIdMap: Record<string, string> = {
+      'gemini-3-pro-preview': 'gemini-3-pro-preview',
+      'gemini-3-flash-preview': 'gemini-3-flash-preview',
+      'gemini-2.5-flash': 'gemini-flash-latest' // Correcting the user-facing name to internal ID
+    };
+
+    const targetId = modelIdMap[requestedModel] || requestedModel;
+    const isPro = targetId.includes('pro');
+    
     executionStages = [
-      { model: requestedModel, useThinking: isPro }, // Try requested model first
-      ...allStages.filter(s => s.model !== requestedModel) // Then fallback to others
+      { model: targetId, useThinking: isPro }, 
+      ...allStages.filter(s => s.model !== targetId) 
     ];
   }
 
-  const MAX_DIFF_CHARS = 3000; 
-  const diffContext = commit.diffs.slice(0, 8).map((d: any) => {
+  const MAX_DIFF_CHARS = 2500; // Slightly more conservative for stability
+  const diffContext = commit.diffs.slice(0, 6).map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
@@ -78,7 +87,7 @@ Respond ONLY with valid JSON.`;
 
   for (const stage of executionStages) {
     try {
-      console.log(`[API/Analyze] Stage: Model=${stage.model}, Thinking=${stage.useThinking}`);
+      console.log(`[API/Analyze] Attempting Stage: Model=${stage.model}, Thinking=${stage.useThinking}`);
       
       const config: any = {
         responseMimeType: "application/json",
@@ -115,11 +124,16 @@ Respond ONLY with valid JSON.`;
       if (!text) continue;
 
       const parsed = JSON.parse(text);
+      console.log(`[API/Analyze] Success with ${stage.model}`);
       return res.status(200).json({ ...parsed, modelUsed: stage.model });
 
     } catch (error: any) {
       lastError = error;
-      console.warn(`[API/Analyze] Stage failed: ${stage.model}`, error.message);
+      console.warn(`[API/Analyze] Stage ${stage.model} failed:`, error.message);
+      // If thinking isn't available, we don't want to fail the whole request
+      if (error.message.includes('thinkingConfig') || error.message.includes('404')) {
+        continue;
+      }
     }
   }
 

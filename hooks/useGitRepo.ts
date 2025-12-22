@@ -25,7 +25,10 @@ export const useGitRepo = () => {
   const [selectedModel, setSelectedModel] = useState<string>('auto');
 
   const gemini = useMemo(() => new GeminiService(), []);
-  const lastProcessedHash = useRef<string | null>(null);
+  
+  // Use a ref to track the last commit that was actually selected to prevent clearing state during hydration
+  const lastAnalyzedHash = useRef<string | null>(null);
+  const currentSelectedHash = useRef<string | null>(null);
 
   // Persistence: Recovery
   useEffect(() => {
@@ -81,20 +84,21 @@ export const useGitRepo = () => {
     setImpactData(null);
     setRepoPath('');
     setHydrationError(null);
-    lastProcessedHash.current = null;
+    currentSelectedHash.current = null;
+    lastAnalyzedHash.current = null;
   }, []);
 
   // Sync effect for selected hash changes
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
     
-    // Only clear analysis if we've actually switched to a different commit
-    if (lastProcessedHash.current !== selectedHash) {
-      console.log(`[useGitRepo] Context switching to ${selectedHash.substring(0, 8)}`);
+    // Only clear analysis and impact data if we actually switched to a DIFFERENT hash
+    if (currentSelectedHash.current !== selectedHash) {
+      console.log(`[useGitRepo] Context switched to ${selectedHash.substring(0, 8)}. Resetting forensic cache.`);
       setAnalysis(null);
       setImpactData(null);
       setHydrationError(null);
-      lastProcessedHash.current = selectedHash;
+      currentSelectedHash.current = selectedHash;
     }
 
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
@@ -109,11 +113,11 @@ export const useGitRepo = () => {
         setIsHydrating(true);
         try {
           activeCommit = await GitService.hydrateCommitDiffs(metadata.path, commit);
-          setCommits(prev => {
-            const next = [...prev];
-            const idx = next.findIndex(c => c.hash === selectedHash);
-            if (idx !== -1) next[idx] = activeCommit;
-            return next;
+          setCommits(prevCommits => {
+            const newCommits = [...prevCommits];
+            const idx = newCommits.findIndex(c => c.hash === selectedHash);
+            if (idx !== -1) newCommits[idx] = activeCommit;
+            return newCommits;
           });
         } catch (err: any) {
           setHydrationError(err.message);
@@ -137,7 +141,7 @@ export const useGitRepo = () => {
     };
 
     prepareCommit();
-  }, [selectedHash, metadata?.path, commits.length]);
+  }, [selectedHash, metadata?.path]);
 
   // Handle active file selection
   useEffect(() => {
@@ -154,19 +158,26 @@ export const useGitRepo = () => {
   const analyzeCommit = async () => {
     const commit = commits.find(c => c.hash === selectedHash);
     if (!commit || commit.diffs.length === 0 || isAnalyzing) {
-      console.warn("[useGitRepo] Analysis skipped: no commit context or already analyzing");
+      console.warn("[useGitRepo] Analysis skipped: Context missing or busy.");
       return;
     }
 
     setIsAnalyzing(true);
     try {
-      console.log(`[useGitRepo] Requesting audit for ${selectedHash} using model ${selectedModel}`);
+      console.log(`[useGitRepo] Dispatching audit request for ${selectedHash.substring(0, 8)} | Target: ${selectedModel}`);
       const result = await gemini.analyzeCommit(commit, selectedModel);
-      console.log("[useGitRepo] Audit result received, updating state...");
-      setAnalysis(result);
+      
+      // Double check that we are still on the same hash before updating state
+      if (currentSelectedHash.current === selectedHash) {
+        console.log("[useGitRepo] Commit audit succeeded. Updating UI state.");
+        setAnalysis(result);
+        lastAnalyzedHash.current = selectedHash;
+      } else {
+        console.warn("[useGitRepo] Analysis discarded: Hash context changed during request.");
+      }
       return true;
     } catch (err) {
-      console.error("[useGitRepo] Analysis state update failed:", err);
+      console.error("[useGitRepo] Critical failure in analysis dispatch:", err);
       return false;
     } finally {
       setIsAnalyzing(false);

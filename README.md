@@ -8,88 +8,56 @@
 
 > **"Code reveals what happened. Forensics reveals why it matters."**
 
-**Git Time-Travel Debugger** (Forensic Suite) is an advanced, AI-augmented developer environment designed for high-stakes root-cause analysis. It bypasses the limitations of standard Git CLI outputs by providing a multi-dimensional HUD (Heads-Up Display) to isolate regressions, audit complex logic deltas, and perform visual binary searches across large-scale repository histories.
+**Git Time-Travel Debugger** (Forensic Suite) is a high-fidelity developer utility built for deep root-cause analysis, semantic audit, and visual history exploration. It leverages the advanced reasoning capabilities of Gemini 3 to transform standard diffs into actionable architectural insights.
 
 ---
 
-## 💎 The Forensic Arsenal
+## 💎 The Forensic Toolkit
 
-### 1. 🧠 AI-Powered Logic Auditing
-Unlike standard diff tools that only highlight textual additions and deletions, our **Forensic Reasoning Engine** (leveraging Gemini 3 Pro) performs a semantic analysis of the code:
-- **Semantic Intent Recovery**: Reconstructs the developer's likely intent behind complex refactors.
-- **Micro-Logic Delta Detection**: Specifically identifies changes in state machine transitions, asynchronous execution flows, and high-order function mutations.
-- **Regression Risk Profiling**: Predicts potential side effects and edge-case failures (e.g., race conditions, memory leaks) based on the current changeset.
-- **Score-Based Risk Assessment**: Each commit is assigned a 0-100% "Regression Risk" score.
+### 1. 🧠 Intelligent Logic Auditing
+The **Forensic Reasoning Engine** (powered by Gemini 3 Pro/Flash) performs deep semantic audits on every changeset:
+- **Multi-Model Strategy**: Choose between high-reasoning "Thinking" models (Gemini 3 Pro) for complex logic or high-speed "Flash" models for rapid history scrubbing.
+- **Predictive Failure Simulation**: Identifies the specific component or state machine transition most likely to fail as a result of the changeset.
+- **Hidden Coupling Detection**: Surfaces non-obvious dependencies that may cause regression in distant modules.
+- **Risk Score HUD**: Real-time regression risk profiling (0-100%).
 
-### 2. ⚡️ Visual Git Bisect HUD
-Traditional `git bisect` is a manual, error-prone cognitive load. Our suite transforms it into a visual elimination game:
-- **Log2 Search Optimization**: Calculates the mathematical midpoint of any commit range to minimize steps.
-- **State Persistence**: Unlike CLI bisect, our HUD persists your search state in `localStorage`, allowing for deep audits over multiple sessions.
-- **Culprit Isolation**: Automatically pins the "Suspected" commit once the search space collapses, triggering an immediate AI deep-dive of the isolated diff.
+### 2. 🕸 Visual Impact Graph
+A dynamic D3.js force-directed graph that maps the "blast radius" of a commit:
+- **Modified vs. Impacted**: Clearly distinguishes between files that were edited and those that are likely affected via imports.
+- **Force-Directed Layout**: Intuitively clusters related modules to visualize code locality and dependency debt.
 
-### 3. 🕸 Interactive D3.js Timeline
-A high-performance, SVG-based navigation system:
-- **Dynamic Scaling**: Effortlessly handles dense histories with hundreds of commits.
-- **Contextual Visuals**: Nodes change color and state based on forensic markers (Good/Bad/Suspected/AI-High-Risk).
-- **Temporal Navigation**: Scrub through history with smooth animations and instant state hydration.
+### 3. ⚡️ Visual Git Bisect HUD
+Accelerate bug hunting with a visually assisted binary search:
+- **Automated Midpoint Calculation**: Mathematically optimal search space reduction.
+- **State Persistence**: Your forensic search progress is saved locally, allowing you to pause and resume audits across sessions.
 
 ---
 
-## 🏛 Technical Architecture Deep-Dive
+## 🏛 Technical Architecture
 
-### **The Intelligence Layer (`GeminiService`)**
-Designed for resilience and high-fidelity reasoning:
-- **Dual-Model Fallback**:
-  - **Tier 1 (Reasoning)**: `gemini-3-pro-preview` for complex diffs requiring high logic comprehension.
-  - **Tier 2 (Latency/Availability)**: `gemini-3-flash-preview` for rapid analysis and large-batch history scans.
-- **Structured Outputs**: Utilizes `responseSchema` to ensure AI responses are strictly valid JSON for seamless UI hydration.
-- **Heuristic Backup**: A local statistical engine that estimates risk based on change volume and file volatility if the AI service is unreachable.
+### **AI Dispatch Layer (`api/analyze.ts`)**
+- **Tiered Execution**: A robust backend pipeline that attempts analysis with Gemini 3 Pro (with thinking budget enabled) before falling back to faster Flash models.
+- **Payload Optimization**: Intelligent diff truncation ensures that the most relevant lines are prioritized within the LLM's context window.
+- **Structured Outputs**: Strictly enforced JSON schema validation via `@google/genai` to ensure consistent UI hydration.
 
-### **The Data Layer (`GitService`)**
-High-performance GitHub REST API integration:
-- **On-Demand Hydration**: Commits are initially fetched as shallow metadata. File diffs and patches are "hydrated" only when a commit is selected, optimizing bandwidth and rate limits.
-- **Strict Validation**: Enforces GitHub-only imports to ensure source integrity and API compatibility.
-
-### **The State Management Layer (Custom Hooks)**
-The application is orchestrated via a decoupled state machine:
-- `useGitRepo`: Manages the lifecycle of the repository, from initial import to per-commit hydration.
-- `useGitBisect`: A pure-logic hook that implements the binary search algorithm, independent of the UI.
+### **State Orchestration (`hooks/useGitRepo.ts`)**
+- **Lazy Hydration**: Commit metadata is loaded initially, while full patches and AI audits are hydrated on-demand to optimize bandwidth.
+- **Context Locking**: Prevents race conditions during asynchronous AI reasoning to ensure forensic data remains synced with the selected commit.
 
 ---
 
-## 🚀 Deployment & Setup
+## 🚀 Deployment & Configuration
 
 ### **Environment Variables**
-This project requires a secure serverless environment to handle AI requests.
 ```env
 API_KEY=your_gemini_api_key_here
 ```
 
-### **Local Development**
-1. **Clone**: Ensure you have Node.js 18+ installed.
-2. **Install**: `npm install`
-3. **Run**: `npm run dev`
-
-### **Production Considerations**
-- **API Rate Limits**: The GitHub API is restricted for unauthenticated requests. For high-volume usage, consider implementing a GitHub Token proxy in `gitService.ts`.
-- **Serverless Limits**: The Vercel function for AI analysis is configured for a 60s timeout to allow for "Thinking" budget execution.
+### **Quick Start**
+1. **Clone & Install**: `npm install`
+2. **Launch Trace**: `npm run dev`
+3. **Import Trace**: Paste any public GitHub URL (e.g., `https://github.com/facebook/react`) to begin the audit.
 
 ---
 
-## 📂 System Roadmap
-- [ ] **Dependency Graph Impact**: Visualize how a file change ripples through downstream imports.
-- [ ] **Collaborative Forensic Reports**: Export an AI-annotated history report as a PDF/Markdown file.
-- [ ] **Local Git Support**: Implementation of a WASM-based Git engine for local directory audits.
-
----
-
-## 📜 Technical Stack
-- **UI Architecture**: React 19 + TypeScript + Tailwind CSS
-- **Visualizations**: D3.js (SVG Rendering)
-- **Intelligence**: Google Gemini 3 (Pro/Flash)
-- **Deployment**: Vercel Serverless (Node.js)
-- **Persistence**: Browser `localStorage` with State Recovery
-
----
-
-*Engineered by senior architects for those who require absolute precision in their version control workflows.*
+*Designed for senior architects and security researchers who require absolute precision in their version control workflows.*

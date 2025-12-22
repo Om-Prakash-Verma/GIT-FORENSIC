@@ -49,15 +49,15 @@ export class GitService {
     try {
       const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`);
       if (!metaResponse.ok) {
-        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded (60 req/hr for unauthenticated IP). Try again later or use a local path.");
+        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded. Try again later.");
         if (metaResponse.status === 404) throw new Error("Repository not found. Ensure the repository is Public.");
-        throw new Error(`GitHub metadata fetch failed: ${metaResponse.statusText}`);
+        throw new Error(`Metadata fetch failed: ${metaResponse.statusText}`);
       }
       const metaData = await metaResponse.json();
 
       const commitsResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits?per_page=100`);
       if (!commitsResponse.ok) {
-        throw new Error(`Failed to fetch commit history: ${commitsResponse.statusText}`);
+        throw new Error(`Failed to fetch history: ${commitsResponse.statusText}`);
       }
       const commitsData = await commitsResponse.json();
 
@@ -82,10 +82,7 @@ export class GitService {
         commits
       };
     } catch (err: any) {
-      if (err.message === 'Failed to fetch') {
-        throw new Error("Connection Blocked: The browser failed to reach GitHub's API. This is usually due to network restrictions, strict CORS, or an ad-blocker.");
-      }
-      throw new Error(`GitHub Sync Error: ${err.message}`);
+      throw new Error(err.message || "Unknown GitHub Sync Error");
     }
   }
 
@@ -97,37 +94,35 @@ export class GitService {
     
     const repoPath = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
     
-    try {
-      const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
-      if (!response.ok) throw new Error(`Details fetch failed: ${response.statusText}`);
-      const data = await response.json();
-
-      const diffs: FileDiff[] = data.files.map((file: any) => ({
-        path: file.filename,
-        changes: file.status === 'renamed' ? 'modified' : file.status,
-        oldContent: '', 
-        newContent: '',
-        patch: file.patch || "",
-        hunks: [],
-        stats: {
-          additions: file.additions,
-          deletions: file.deletions
-        }
-      }));
-
-      return {
-        ...commit,
-        stats: {
-          insertions: data.stats.additions,
-          deletions: data.stats.deletions,
-          filesChanged: data.files.length
-        },
-        diffs
-      };
-    } catch (err) {
-      console.error("Hydration failure:", err);
-      return commit;
+    const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
+    if (!response.ok) {
+      if (response.status === 403) throw new Error("GitHub API Rate Limit reached while fetching diffs.");
+      throw new Error(`Details fetch failed: ${response.statusText}`);
     }
+    const data = await response.json();
+
+    const diffs: FileDiff[] = data.files.map((file: any) => ({
+      path: file.filename,
+      changes: file.status === 'renamed' ? 'modified' : file.status,
+      oldContent: '', 
+      newContent: '',
+      patch: file.patch || "",
+      hunks: [],
+      stats: {
+        additions: file.additions,
+        deletions: file.deletions
+      }
+    }));
+
+    return {
+      ...commit,
+      stats: {
+        insertions: data.stats.additions,
+        deletions: data.stats.deletions,
+        filesChanged: data.files.length
+      },
+      diffs
+    };
   }
 
   private static generateRealisticHistory(): Commit[] {

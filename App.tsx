@@ -48,6 +48,8 @@ const App: React.FC = () => {
       isAnalyzing={repo.isAnalyzing}
       isHydrating={repo.isHydrating}
       hydrationError={repo.hydrationError}
+      impactData={repo.impactData}
+      isMappingImpact={repo.isMappingImpact}
       onAnalyze={repo.analyzeCommit}
       onExit={handleExit}
       bisect={bisect}

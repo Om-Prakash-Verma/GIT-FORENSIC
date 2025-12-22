@@ -32,10 +32,14 @@ export class GeminiService {
     const risk = commit.stats.insertions > 200 || commit.stats.filesChanged > 5 ? 65 : 15;
     return {
       summary: "Automated reasoning engine unavailable (Server Error). Performing heuristic evaluation.",
+      conceptualSummary: "Structural change detected in the codebase. Intent is inferred from message patterns.",
+      category: commit.category || 'logic',
       logicChanges: [`Manual audit recommended for ${commit.stats.filesChanged} modified files.`],
       bugRiskExplanation: "Heuristic evaluation based on change volume and file count. Accuracy is limited without LLM reasoning.",
+      dangerReasoning: "Unable to perform deep forensic reasoning due to service interruption. Manual review of logic deltas is required.",
       probabilityScore: risk,
-      riskFactors: ["AI Service Interruption", "High Change Volume Heuristic"]
+      riskFactors: ["AI Service Interruption", "High Change Volume Heuristic"],
+      fixStrategies: ["Initiate manual code review by senior engineer", "Verify changes against staging environment data"]
     };
   }
 }

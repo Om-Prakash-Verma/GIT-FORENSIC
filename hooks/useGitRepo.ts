@@ -1,8 +1,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Commit, RepositoryMetadata, AIAnalysis } from '../types.ts';
+import { Commit, RepositoryMetadata, AIAnalysis, ImpactData } from '../types.ts';
 import { GitService } from '../services/gitService.ts';
 import { GeminiService } from '../services/geminiService.ts';
+import { DependencyService } from '../services/dependencyService.ts';
 
 const STORAGE_KEY_REPO = 'git-forensics-repo-state';
 
@@ -18,6 +19,9 @@ export const useGitRepo = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isHydrating, setIsHydrating] = useState(false);
   const [hydrationError, setHydrationError] = useState<string | null>(null);
+  
+  const [impactData, setImpactData] = useState<ImpactData | null>(null);
+  const [isMappingImpact, setIsMappingImpact] = useState(false);
 
   const gemini = useMemo(() => new GeminiService(), []);
 
@@ -72,11 +76,12 @@ export const useGitRepo = () => {
     setSelectedHash(null);
     setAnalysis(null);
     setActiveFilePath(null);
+    setImpactData(null);
     setRepoPath('');
     setHydrationError(null);
   }, []);
 
-  // Hydration logic
+  // Hydration and Impact logic
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
@@ -84,20 +89,35 @@ export const useGitRepo = () => {
     if (!commit) return;
 
     setAnalysis(null);
+    setImpactData(null);
     setHydrationError(null);
 
     const prepareCommit = async () => {
+      let activeCommit = commit;
       if (commit.diffs.length === 0 && metadata.path.includes('github.com')) {
         setIsHydrating(true);
         try {
-          const hydrated = await GitService.hydrateCommitDiffs(metadata.path, commit);
+          activeCommit = await GitService.hydrateCommitDiffs(metadata.path, commit);
           const newCommits = [...commits];
-          newCommits[commitIdx] = hydrated;
+          newCommits[commitIdx] = activeCommit;
           setCommits(newCommits);
         } catch (err: any) {
           setHydrationError(err.message);
         } finally {
           setIsHydrating(false);
+        }
+      }
+
+      // Generate impact graph automatically on commit select
+      if (activeCommit.diffs.length > 0) {
+        setIsMappingImpact(true);
+        try {
+          const impact = await DependencyService.buildImpactGraph(metadata.path, activeCommit.hash, activeCommit.diffs);
+          setImpactData(impact);
+        } catch (e) {
+          console.error("Impact mapping failed", e);
+        } finally {
+          setIsMappingImpact(false);
         }
       }
     };
@@ -138,6 +158,7 @@ export const useGitRepo = () => {
     isLoaded, isPathLoading, repoPath, setRepoPath, metadata, commits,
     selectedHash, setSelectedHash, activeFilePath, setActiveFilePath,
     analysis, setAnalysis, isAnalyzing, isHydrating, hydrationError,
+    impactData, isMappingImpact,
     loadRepository, resetRepo, analyzeCommit
   };
 };

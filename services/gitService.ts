@@ -1,9 +1,8 @@
 
-import { Commit, FileDiff, DiffHunk, RepositoryMetadata } from '../types';
+import { Commit, FileDiff, RepositoryMetadata, CommitCategory } from '../types';
 
 /**
  * GitService: Manages communication with the Git backend or Remote APIs.
- * This version strictly enforces GitHub repository importing via the REST API.
  */
 export class GitService {
   private static GITHUB_API_BASE = 'https://api.github.com/repos';
@@ -18,8 +17,43 @@ export class GitService {
     return this.fetchGitHubRepository(pathOrUrl);
   }
 
+  static calculateVolatility(stats: { insertions: number, deletions: number, filesChanged: number }, category: CommitCategory): number {
+    let score = 0;
+    const totalLines = stats.insertions + stats.deletions;
+    
+    // Weight by volume
+    score += Math.min(totalLines / 20, 40); 
+    // Weight by file spread
+    score += Math.min(stats.filesChanged * 5, 30);
+    // Weight by category
+    const categoryWeights: Record<CommitCategory, number> = {
+      logic: 30,
+      fix: 25,
+      feat: 20,
+      refactor: 15,
+      dependency: 10,
+      chore: 5,
+      style: 0
+    };
+    score += categoryWeights[category] || 0;
+
+    return Math.min(Math.max(score, 5), 100);
+  }
+
+  static classifyHeuristically(message: string, files: string[] = []): CommitCategory {
+    const msg = message.toLowerCase();
+    
+    // Pattern Matchers
+    if (msg.includes('fix') || msg.includes('patch') || msg.includes('bug')) return 'fix';
+    if (msg.includes('feat') || msg.includes('add')) return 'feat';
+    if (msg.includes('refactor') || msg.includes('clean') || msg.includes('move')) return 'refactor';
+    if (msg.includes('deps') || msg.includes('dependency') || files.some(f => f.includes('lock') || f.includes('package.json'))) return 'dependency';
+    if (msg.includes('style') || msg.includes('format') || msg.includes('lint') || msg.includes('prettier')) return 'style';
+    
+    return 'logic';
+  }
+
   private static isGitHubUrl(input: string): boolean {
-    // Matches standard HTTPS and git-style GitHub URLs
     return /github\.com\/[\w-]+\/[\w.-]+/.test(input);
   }
 
@@ -34,8 +68,8 @@ export class GitService {
     try {
       const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`);
       if (!metaResponse.ok) {
-        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded. Please try again later or use a different network.");
-        if (metaResponse.status === 404) throw new Error("Repository not found. Ensure the repository is Public.");
+        if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded.");
+        if (metaResponse.status === 404) throw new Error("Repository not found.");
         throw new Error(`GitHub Sync Error: ${metaResponse.status}`);
       }
       const metaData = await metaResponse.json();
@@ -46,16 +80,22 @@ export class GitService {
       }
       const commitsData = await commitsResponse.json();
 
-      const commits: Commit[] = commitsData.map((c: any) => ({
-        hash: c.sha,
-        author: c.commit.author.name,
-        authorEmail: c.commit.author.email,
-        date: c.commit.author.date,
-        message: c.commit.message,
-        parents: c.parents.map((p: any) => p.sha),
-        stats: { insertions: 0, deletions: 0, filesChanged: 0 },
-        diffs: []
-      }));
+      const commits: Commit[] = commitsData.map((c: any) => {
+        const message = c.commit.message;
+        const category = this.classifyHeuristically(message);
+        return {
+          hash: c.sha,
+          author: c.commit.author.name,
+          authorEmail: c.commit.author.email,
+          date: c.commit.author.date,
+          message,
+          parents: c.parents.map((p: any) => p.sha),
+          category,
+          volatilityScore: 10, // Default until hydrated
+          stats: { insertions: 0, deletions: 0, filesChanged: 0 },
+          diffs: []
+        };
+      });
 
       return {
         metadata: {
@@ -67,7 +107,7 @@ export class GitService {
         commits
       };
     } catch (err: any) {
-      throw new Error(err.message || "Unknown Network Error during GitHub synchronization.");
+      throw new Error(err.message || "Unknown Network Error.");
     }
   }
 
@@ -81,11 +121,16 @@ export class GitService {
     
     try {
       const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
-      if (!response.ok) {
-        if (response.status === 403) throw new Error("Rate Limit reached. Differential data unavailable.");
-        throw new Error(`Commit fetch failed (${response.status})`);
-      }
+      if (!response.ok) throw new Error(`Commit fetch failed (${response.status})`);
       const data = await response.json();
+
+      const files = data.files.map((f: any) => f.filename);
+      const category = this.classifyHeuristically(commit.message, files);
+      const stats = {
+        insertions: data.stats.additions,
+        deletions: data.stats.deletions,
+        filesChanged: data.files.length
+      };
 
       const diffs: FileDiff[] = data.files.map((file: any) => ({
         path: file.filename,
@@ -102,11 +147,9 @@ export class GitService {
 
       return {
         ...commit,
-        stats: {
-          insertions: data.stats.additions,
-          deletions: data.stats.deletions,
-          filesChanged: data.files.length
-        },
+        category,
+        volatilityScore: this.calculateVolatility(stats, category),
+        stats,
         diffs
       };
     } catch (err: any) {

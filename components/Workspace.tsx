@@ -30,6 +30,8 @@ interface WorkspaceProps {
   onMarkGood: () => void;
   onMarkBad: () => void;
   onToggleBisect: () => void;
+  selectedModel: string;
+  setSelectedModel: (m: string) => void;
 }
 
 type MobileView = 'files' | 'diff' | 'impact' | 'analysis';
@@ -38,7 +40,8 @@ type CenterView = 'diff' | 'impact';
 const Workspace: React.FC<WorkspaceProps> = ({
   metadata, commits, selectedHash, setSelectedHash, activeFilePath, setActiveFilePath,
   analysis, isAnalyzing, isHydrating, hydrationError, impactData, isMappingImpact,
-  onAnalyze, onExit, bisect, bisectStatuses, onMarkGood, onMarkBad, onToggleBisect
+  onAnalyze, onExit, bisect, bisectStatuses, onMarkGood, onMarkBad, onToggleBisect,
+  selectedModel, setSelectedModel
 }) => {
   const [mobileView, setMobileView] = useState<MobileView>('diff');
   const [centerView, setCenterView] = useState<CenterView>('diff');
@@ -50,15 +53,8 @@ const Workspace: React.FC<WorkspaceProps> = ({
     if (window.innerWidth < 1024) setMobileView('analysis');
   };
 
-  // Reset focus mode on hash change to ensure context is visible initially
-  useEffect(() => {
-    // Optional: Auto-expand impact graph when selected for first time?
-    // For now, let's keep it manual.
-  }, [selectedHash]);
-
   return (
     <div className="flex flex-col lg:flex-row h-screen w-screen bg-[#020617] text-slate-200 overflow-hidden font-sans">
-      {/* Sidebar - Hidden on mobile, sticky on desktop */}
       <NavigationSidebar 
         bisectActive={bisect.isActive} 
         onExit={onExit} 
@@ -75,14 +71,12 @@ const Workspace: React.FC<WorkspaceProps> = ({
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Timeline */}
           <Timeline 
             commits={commits} selectedHash={selectedHash} onSelect={setSelectedHash}
             bisectStatuses={bisectStatuses}
             bisectRange={bisect.isActive ? { start: bisect.goodHash, end: bisect.badHash } : undefined}
           />
           
-          {/* Status Bar */}
           <div className="bg-black/40 px-6 py-2 border-y border-white/5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
                <div className="flex items-center gap-2 shrink-0">
@@ -94,10 +88,9 @@ const Workspace: React.FC<WorkspaceProps> = ({
                  <span className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Stability Baselines</span>
                </div>
             </div>
-            <p className="hidden md:block text-[8px] font-mono text-slate-700 uppercase">Engine: Gemini-3-Flash.LogicScanner-v3.2</p>
+            <p className="hidden md:block text-[8px] font-mono text-slate-700 uppercase">Engine: Forensic.LogicScanner-v3.3</p>
           </div>
 
-          {/* Mobile Tab Navigation */}
           <nav className="lg:hidden flex border-b border-white/5 bg-black/30 shrink-0 h-14 overflow-x-auto no-scrollbar">
             {(['files', 'diff', 'impact', 'analysis'] as MobileView[]).map(view => (
               <button 
@@ -111,9 +104,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
             ))}
           </nav>
 
-          {/* Main Content Area */}
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-             {/* Left Panel: File Explorer */}
              <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} shrink-0 w-full lg:w-72 xl:w-80 h-full border-r border-white/5 transition-all duration-300`}>
                <FileExplorer 
                  isVisible={true}
@@ -125,9 +116,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
                />
              </div>
 
-             {/* Center Panel: Source / Impact */}
              <div className={`${(mobileView === 'diff' || mobileView === 'impact') ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden min-w-0 bg-black/20`}>
-                {/* View Switcher Tabs (Desktop Only) */}
                 <div className="hidden lg:flex items-center justify-between p-3 bg-black/20 border-b border-white/5 shrink-0">
                   <div className="flex items-center gap-1">
                     <button 
@@ -146,7 +135,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
                     </button>
                   </div>
                   
-                  {/* Focus Toggle Button */}
                   <button 
                     onClick={() => setIsCenterExpanded(!isCenterExpanded)}
                     title={isCenterExpanded ? "Restore Side Panels" : "Maximize Viewport"}
@@ -169,11 +157,12 @@ const Workspace: React.FC<WorkspaceProps> = ({
                 </div>
              </div>
 
-             {/* Right Panel: Analysis */}
              <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} w-full lg:w-[380px] xl:w-[440px] flex-col shrink-0 h-full overflow-hidden border-l border-white/5 bg-[#020617] transition-all duration-300`}>
                <CommitInfo 
                  commit={currentCommit} analysis={analysis} loading={isAnalyzing || isHydrating}
                  onAnalyze={handleAnalyzeWithTransition}
+                 selectedModel={selectedModel}
+                 setSelectedModel={setSelectedModel}
                />
              </div>
           </div>

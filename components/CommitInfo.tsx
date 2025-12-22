@@ -8,13 +8,24 @@ interface CommitInfoProps {
   analysis: AIAnalysis | null;
   loading: boolean;
   onAnalyze: () => void;
+  selectedModel: string;
+  setSelectedModel: (m: string) => void;
 }
 
-const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAnalyze }) => {
+const CommitInfo: React.FC<CommitInfoProps> = ({ 
+  commit, analysis, loading, onAnalyze, selectedModel, setSelectedModel 
+}) => {
   if (!commit) return null;
 
   const currentCategory = analysis?.category || commit.category || 'logic';
   const isHeuristic = analysis?.summary.toLowerCase().includes('heuristic');
+
+  const models = [
+    { id: 'auto', name: 'Auto Optimized' },
+    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
+  ];
 
   return (
     <div className="w-full h-full flex flex-col bg-[#020617] overflow-y-auto custom-scrollbar relative">
@@ -49,7 +60,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
       </div>
 
       <div className="p-6 lg:p-8 space-y-8 flex-1 pb-24">
-        {/* Statistics HUD */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Impact', val: `+${commit.stats.insertions}`, color: 'text-green-500' },
@@ -69,7 +79,13 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
               <Icons.Brain className={`w-4 h-4 text-amber-500 ${loading ? 'animate-pulse' : ''}`} />
               Forensic Intelligence
             </h3>
-            {loading && <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />}
+            <select 
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1 outline-none focus:border-amber-500/50"
+            >
+              {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
           </div>
 
           {analysis ? (
@@ -81,7 +97,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                  </div>
                )}
 
-               {/* High-Impact Conceptual Summary */}
                <div className="p-5 rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -92,7 +107,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </p>
               </div>
 
-               {/* Risk Score Meter */}
                <div className="glass p-6 rounded-3xl space-y-4">
                 <div className="flex items-end justify-between">
                   <div>
@@ -106,7 +120,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
-              {/* What Broke First? Simulation */}
               <div className="p-5 rounded-3xl border border-purple-500/20 bg-purple-500/5 space-y-4">
                 <div className="flex items-center gap-3">
                    <div className="p-1.5 bg-purple-500/20 rounded-lg">
@@ -120,7 +133,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </p>
               </div>
 
-              {/* Hidden Coupling Detector */}
               <div className="p-5 rounded-3xl border border-cyan-500/20 bg-cyan-500/5 space-y-4">
                 <div className="flex items-center gap-3">
                    <div className="p-1.5 bg-cyan-500/20 rounded-lg text-cyan-400">
@@ -138,7 +150,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
-              {/* Remediation Strategies */}
               <div className="p-5 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-5">
                 <h4 className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Remediation Protocol</h4>
                 <div className="space-y-3">
@@ -151,7 +162,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
-              {/* Danger Alert */}
               <div className="p-5 rounded-3xl border border-red-500/20 bg-red-500/5">
                 <div className="flex items-center gap-2 mb-4">
                   <Icons.Alert className="w-4 h-4 text-red-500" />
@@ -162,7 +172,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
-              {/* Technical Summary */}
               <div className="space-y-3 pt-4 border-t border-white/5">
                 <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Technical Intent</h4>
                 <p className="text-xs text-slate-400 leading-relaxed font-medium px-1">{analysis.summary}</p>

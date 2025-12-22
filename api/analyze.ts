@@ -8,7 +8,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { commit } = req.body;
+  const { commit, model: requestedModel } = req.body;
 
   if (!commit) {
     console.error("[API/Analyze] Missing commit in request body");
@@ -21,18 +21,26 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Server API Key missing' });
   }
 
-  console.log(`[API/Analyze] Performing audit for ${commit.hash.substring(0, 8)}: ${commit.message.substring(0, 50)}`);
-
   const ai = new GoogleGenAI({ apiKey });
   
-  // Strategy: Try Pro with Thinking -> Pro -> Flash
-  const executionStages = [
+  // Base stages for fallback
+  const allStages = [
     { model: 'gemini-3-pro-preview', useThinking: true },
     { model: 'gemini-3-pro-preview', useThinking: false },
-    { model: 'gemini-3-flash-preview', useThinking: false }
+    { model: 'gemini-3-flash-preview', useThinking: false },
+    { model: 'gemini-2.5-flash', useThinking: false }
   ];
 
-  // More conservative truncation to ensure payload and token stability
+  // If the user requested a specific model, we prioritize it
+  let executionStages = allStages;
+  if (requestedModel && requestedModel !== 'auto') {
+    const isPro = requestedModel.includes('pro');
+    executionStages = [
+      { model: requestedModel, useThinking: isPro }, // Try requested model first
+      ...allStages.filter(s => s.model !== requestedModel) // Then fallback to others
+    ];
+  }
+
   const MAX_DIFF_CHARS = 3000; 
   const diffContext = commit.diffs.slice(0, 8).map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
@@ -104,29 +112,17 @@ Respond ONLY with valid JSON.`;
       });
 
       const text = response.text;
-      if (!text) {
-        console.warn(`[API/Analyze] Model ${stage.model} returned no text. Retrying with next stage.`);
-        continue;
-      }
+      if (!text) continue;
 
       const parsed = JSON.parse(text);
-      console.log(`[API/Analyze] Audit successful using ${stage.model}`);
-      return res.status(200).json(parsed);
+      return res.status(200).json({ ...parsed, modelUsed: stage.model });
 
     } catch (error: any) {
       lastError = error;
-      const errorMsg = error.message || "Unknown error";
-      console.warn(`[API/Analyze] Failure in stage ${stage.model} (Thinking: ${stage.useThinking}):`, errorMsg);
-      
-      // If it's a safety filter error or something similar, we might want to know
-      if (errorMsg.includes("Candidate was blocked")) {
-        console.error("[API/Analyze] Content blocked by safety filters.");
-      }
+      console.warn(`[API/Analyze] Stage failed: ${stage.model}`, error.message);
     }
   }
 
-  // All stages failed
-  console.error(`[API/Analyze] Forensic pipeline exhausted. Last error:`, lastError?.message || lastError);
   return res.status(500).json({ 
     error: 'Forensic audit failed', 
     details: lastError?.message || 'The AI service was unable to process this diff.'

@@ -57,6 +57,8 @@ const App: React.FC = () => {
       onMarkGood={markGood}
       onMarkBad={markBad}
       onToggleBisect={bisect.isActive ? resetBisect : () => repo.selectedHash && startBisect(repo.selectedHash)}
+      selectedModel={repo.selectedModel}
+      setSelectedModel={repo.setSelectedModel}
     />
   );
 };

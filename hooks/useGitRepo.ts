@@ -22,6 +22,7 @@ export const useGitRepo = () => {
   
   const [impactData, setImpactData] = useState<ImpactData | null>(null);
   const [isMappingImpact, setIsMappingImpact] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('auto');
 
   const gemini = useMemo(() => new GeminiService(), []);
 
@@ -29,7 +30,6 @@ export const useGitRepo = () => {
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY_REPO);
     if (saved) {
-      console.log("[useGitRepo] Attempting to restore repository state from localStorage");
       try {
         const parsed = JSON.parse(saved);
         setMetadata(parsed.metadata);
@@ -37,7 +37,6 @@ export const useGitRepo = () => {
         setSelectedHash(parsed.selectedHash);
         setActiveFilePath(parsed.activeFilePath);
         setIsLoaded(true);
-        console.log(`[useGitRepo] Successfully restored ${parsed.metadata.name}`);
       } catch (e) {
         console.error("[useGitRepo] Failed to restore repo session", e);
       }
@@ -47,7 +46,6 @@ export const useGitRepo = () => {
   // Persistence: Save
   useEffect(() => {
     if (isLoaded && metadata) {
-      console.debug("[useGitRepo] Syncing repository state to localStorage");
       localStorage.setItem(STORAGE_KEY_REPO, JSON.stringify({
         metadata, commits, selectedHash, activeFilePath
       }));
@@ -55,7 +53,6 @@ export const useGitRepo = () => {
   }, [isLoaded, metadata, commits, selectedHash, activeFilePath]);
 
   const loadRepository = async (path: string) => {
-    console.log(`[useGitRepo] User initiated repository import for: ${path}`);
     setIsPathLoading(true);
     try {
       const data = await GitService.loadRepository(path);
@@ -63,10 +60,8 @@ export const useGitRepo = () => {
       setCommits(data.commits);
       if (data.commits.length > 0) setSelectedHash(data.commits[0].hash);
       setIsLoaded(true);
-      console.log(`[useGitRepo] Repository import complete: ${data.metadata.name}`);
       return true;
     } catch (err: any) {
-      console.error("[useGitRepo] Repository import failed:", err);
       alert(`Import Error: ${err.message}`);
       return false;
     } finally {
@@ -75,7 +70,6 @@ export const useGitRepo = () => {
   };
 
   const resetRepo = useCallback(() => {
-    console.log("[useGitRepo] Clearing repository state");
     localStorage.removeItem(STORAGE_KEY_REPO);
     setIsLoaded(false);
     setMetadata(null);
@@ -88,10 +82,8 @@ export const useGitRepo = () => {
     setHydrationError(null);
   }, []);
 
-  // Hydration and Impact logic
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
-    
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
     const commit = commits[commitIdx];
     if (!commit) return;
@@ -110,14 +102,12 @@ export const useGitRepo = () => {
           newCommits[commitIdx] = activeCommit;
           setCommits(newCommits);
         } catch (err: any) {
-          console.error(`[useGitRepo] Hydration error for ${selectedHash.substring(0, 8)}:`, err);
           setHydrationError(err.message);
         } finally {
           setIsHydrating(false);
         }
       }
 
-      // Generate impact graph automatically on commit select
       if (activeCommit.diffs.length > 0) {
         setIsMappingImpact(true);
         try {
@@ -133,7 +123,6 @@ export const useGitRepo = () => {
     prepareCommit();
   }, [selectedHash, metadata?.path]);
 
-  // Set initial active file when commit changes
   useEffect(() => {
     const commit = commits.find(c => c.hash === selectedHash);
     if (commit && commit.diffs.length > 0) {
@@ -147,17 +136,15 @@ export const useGitRepo = () => {
 
   const analyzeCommit = async () => {
     if (!selectedHash || commits.length === 0 || isAnalyzing) return;
-    
     const commit = commits.find(c => c.hash === selectedHash);
     if (!commit || commit.diffs.length === 0) return;
 
     setIsAnalyzing(true);
     try {
-      const result = await gemini.analyzeCommit(commit);
+      const result = await gemini.analyzeCommit(commit, selectedModel);
       setAnalysis(result);
       return true;
     } catch (err) {
-      console.error("[useGitRepo] Forensic analysis workflow failed:", err);
       return false;
     } finally {
       setIsAnalyzing(false);
@@ -168,7 +155,7 @@ export const useGitRepo = () => {
     isLoaded, isPathLoading, repoPath, setRepoPath, metadata, commits,
     selectedHash, setSelectedHash, activeFilePath, setActiveFilePath,
     analysis, setAnalysis, isAnalyzing, isHydrating, hydrationError,
-    impactData, isMappingImpact,
+    impactData, isMappingImpact, selectedModel, setSelectedModel,
     loadRepository, resetRepo, analyzeCommit
   };
 };

@@ -29,6 +29,7 @@ export const useGitRepo = () => {
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY_REPO);
     if (saved) {
+      console.log("[useGitRepo] Attempting to restore repository state from localStorage");
       try {
         const parsed = JSON.parse(saved);
         setMetadata(parsed.metadata);
@@ -36,8 +37,9 @@ export const useGitRepo = () => {
         setSelectedHash(parsed.selectedHash);
         setActiveFilePath(parsed.activeFilePath);
         setIsLoaded(true);
+        console.log(`[useGitRepo] Successfully restored ${parsed.metadata.name}`);
       } catch (e) {
-        console.error("Failed to restore repo session", e);
+        console.error("[useGitRepo] Failed to restore repo session", e);
       }
     }
   }, []);
@@ -45,6 +47,7 @@ export const useGitRepo = () => {
   // Persistence: Save
   useEffect(() => {
     if (isLoaded && metadata) {
+      console.debug("[useGitRepo] Syncing repository state to localStorage");
       localStorage.setItem(STORAGE_KEY_REPO, JSON.stringify({
         metadata, commits, selectedHash, activeFilePath
       }));
@@ -52,6 +55,7 @@ export const useGitRepo = () => {
   }, [isLoaded, metadata, commits, selectedHash, activeFilePath]);
 
   const loadRepository = async (path: string) => {
+    console.log(`[useGitRepo] User initiated repository import for: ${path}`);
     setIsPathLoading(true);
     try {
       const data = await GitService.loadRepository(path);
@@ -59,8 +63,10 @@ export const useGitRepo = () => {
       setCommits(data.commits);
       if (data.commits.length > 0) setSelectedHash(data.commits[0].hash);
       setIsLoaded(true);
+      console.log(`[useGitRepo] Repository import complete: ${data.metadata.name}`);
       return true;
     } catch (err: any) {
+      console.error("[useGitRepo] Repository import failed:", err);
       alert(`Import Error: ${err.message}`);
       return false;
     } finally {
@@ -69,6 +75,7 @@ export const useGitRepo = () => {
   };
 
   const resetRepo = useCallback(() => {
+    console.log("[useGitRepo] Clearing repository state");
     localStorage.removeItem(STORAGE_KEY_REPO);
     setIsLoaded(false);
     setMetadata(null);
@@ -84,9 +91,14 @@ export const useGitRepo = () => {
   // Hydration and Impact logic
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
+    
+    console.log(`[useGitRepo] Selected hash changed: ${selectedHash.substring(0, 8)}`);
     const commitIdx = commits.findIndex(c => c.hash === selectedHash);
     const commit = commits[commitIdx];
-    if (!commit) return;
+    if (!commit) {
+      console.warn(`[useGitRepo] Selected hash ${selectedHash} not found in commits array`);
+      return;
+    }
 
     setAnalysis(null);
     setImpactData(null);
@@ -95,27 +107,34 @@ export const useGitRepo = () => {
     const prepareCommit = async () => {
       let activeCommit = commit;
       if (commit.diffs.length === 0 && metadata.path.includes('github.com')) {
+        console.log(`[useGitRepo] Triggering hydration for ${selectedHash.substring(0, 8)}`);
         setIsHydrating(true);
         try {
           activeCommit = await GitService.hydrateCommitDiffs(metadata.path, commit);
           const newCommits = [...commits];
           newCommits[commitIdx] = activeCommit;
           setCommits(newCommits);
+          console.log(`[useGitRepo] Hydration complete for ${selectedHash.substring(0, 8)}`);
         } catch (err: any) {
+          console.error(`[useGitRepo] Hydration error for ${selectedHash.substring(0, 8)}:`, err);
           setHydrationError(err.message);
         } finally {
           setIsHydrating(false);
         }
+      } else {
+        console.debug(`[useGitRepo] ${selectedHash.substring(0, 8)} already hydrated or not supported.`);
       }
 
       // Generate impact graph automatically on commit select
       if (activeCommit.diffs.length > 0) {
+        console.log(`[useGitRepo] Mapping impact radius for ${selectedHash.substring(0, 8)}`);
         setIsMappingImpact(true);
         try {
           const impact = await DependencyService.buildImpactGraph(metadata.path, activeCommit.hash, activeCommit.diffs);
           setImpactData(impact);
+          console.log(`[useGitRepo] Impact mapping successful. Nodes: ${impact.nodes.length}, Links: ${impact.links.length}`);
         } catch (e) {
-          console.error("Impact mapping failed", e);
+          console.error("[useGitRepo] Impact mapping failed:", e);
         } finally {
           setIsMappingImpact(false);
         }
@@ -129,7 +148,9 @@ export const useGitRepo = () => {
     const commit = commits.find(c => c.hash === selectedHash);
     if (commit && commit.diffs.length > 0) {
       if (!activeFilePath || !commit.diffs.find(d => d.path === activeFilePath)) {
-        setActiveFilePath(commit.diffs[0].path);
+        const defaultFile = commit.diffs[0].path;
+        console.debug(`[useGitRepo] Auto-selecting active file: ${defaultFile}`);
+        setActiveFilePath(defaultFile);
       }
     } else {
       setActiveFilePath(null);
@@ -137,17 +158,25 @@ export const useGitRepo = () => {
   }, [selectedHash, commits.length]);
 
   const analyzeCommit = async () => {
-    if (!selectedHash || commits.length === 0 || isAnalyzing) return;
+    if (!selectedHash || commits.length === 0 || isAnalyzing) {
+      console.warn("[useGitRepo] Analysis request ignored: already analyzing or invalid selection");
+      return;
+    }
     const commit = commits.find(c => c.hash === selectedHash);
-    if (!commit || commit.diffs.length === 0) return;
+    if (!commit || commit.diffs.length === 0) {
+      console.warn("[useGitRepo] Cannot analyze: commit not hydrated");
+      return;
+    }
 
     setIsAnalyzing(true);
     try {
+      console.log(`[useGitRepo] Starting forensic analysis of ${selectedHash.substring(0, 8)}`);
       const result = await gemini.analyzeCommit(commit);
       setAnalysis(result);
+      console.log("[useGitRepo] Forensic analysis task resolved.");
       return true;
     } catch (err) {
-      console.error("Analysis failed", err);
+      console.error("[useGitRepo] Forensic analysis workflow failed:", err);
       return false;
     } finally {
       setIsAnalyzing(false);

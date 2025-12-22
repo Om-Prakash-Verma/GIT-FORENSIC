@@ -2,55 +2,76 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
 export default async function handler(req: any, res: any) {
+  console.log(`[API/Analyze] Request received. Method: ${req.method}`);
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   const { commit } = req.body;
 
-  if (!commit || !process.env.API_KEY) {
+  if (!commit) {
+    console.error("[API/Analyze] Missing commit in request body");
     return res.status(400).json({ error: 'Incomplete parameters' });
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const PRIMARY_MODEL = 'gemini-3-flash-preview';
+  if (!process.env.API_KEY) {
+    console.error("[API/Analyze] API_KEY environment variable is not configured");
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
 
-  // Optimization: Extreme truncation for high-speed forensic scanning
-  const MAX_DIFF_CHARS = 2000;
+  console.log(`[API/Analyze] Processing high-fidelity forensic audit for ${commit.hash.substring(0, 8)}`);
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Switching to Pro for superior reasoning in complex diffs
+  const PRIMARY_MODEL = 'gemini-3-pro-preview';
+
+  // Optimization: Increased context window for Pro
+  const MAX_DIFF_CHARS = 4000; 
   const diffContext = commit.diffs.map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
 
-  const prompt = `Act as a senior software architect and incident responder. Audit this commit diff for architectural risks and regressions.
+  console.debug(`[API/Analyze] Diff context generated. Length: ${diffContext.length} chars`);
+
+  const prompt = `Act as a senior software architect and world-class security researcher. 
+Perform a deep forensic audit of this commit diff. Identify architectural risks, potential regressions, and semantic intent.
+
 Commit Msg: ${commit.message}
 Stats: +${commit.stats.insertions} / -${commit.stats.deletions}
 
-[DIFF]
+[COMMIT DIFF DATA]
 ${diffContext}
 
-[TASK]
-Return a JSON object with:
-1. "category": (logic, refactor, dependency, style, feat, fix, or chore)
-2. "conceptualSummary": 1-sentence high-level intent.
-3. "summary": Brief technical summary.
-4. "logicChanges": Array of 2 strings describing flow/state changes.
-5. "bugRiskExplanation": Risk level description.
-6. "dangerReasoning": 1 specific runtime or architectural risk.
-7. "probabilityScore": Number (0-100).
-8. "riskFactors": Array of 2 risk strings.
-9. "fixStrategies": Array of 2 conceptual remediation strategies.
-10. "failureSimulation": Predict exactly which system component fails first if this commit has a bug (e.g., "API fails before UI due to X").
-11. "hiddenCouplings": Array of 2-3 strings detecting non-obvious couplings like shared globals (window.X), env vars (process.env.Y), shared storage keys (localStorage), or implicit file execution ordering.
+[INSTRUCTIONS]
+Return a JSON object following this EXACT structure:
+{
+  "category": "logic" | "refactor" | "dependency" | "style" | "feat" | "fix" | "chore",
+  "conceptualSummary": "Single sentence high-level intent.",
+  "summary": "Detailed technical summary.",
+  "logicChanges": ["Change 1", "Change 2"],
+  "bugRiskExplanation": "Why this is or isn't risky.",
+  "dangerReasoning": "One specific architectural failure point.",
+  "probabilityScore": 0-100,
+  "riskFactors": ["Factor 1", "Factor 2"],
+  "fixStrategies": ["Strategy 1", "Strategy 2"],
+  "failureSimulation": "Predict the exact component that fails first.",
+  "hiddenCouplings": ["Non-obvious coupling 1", "Non-obvious coupling 2"]
+}
 
 Respond ONLY with valid JSON.`;
 
   try {
+    console.log(`[API/Analyze] Calling Gemini 3 Pro with thinkingConfig...`);
+    
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: PRIMARY_MODEL,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        // Enabling thinking for deep architectural reasoning
+        thinkingConfig: { thinkingBudget: 16384 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -72,11 +93,27 @@ Respond ONLY with valid JSON.`;
     });
 
     const text = response.text;
-    if (!text) throw new Error('Empty AI response');
+    if (!text) {
+      console.error("[API/Analyze] Pro model returned empty text. Checking candidates...");
+      console.debug(JSON.stringify(response.candidates));
+      throw new Error('Empty AI response');
+    }
 
-    return res.status(200).json(JSON.parse(text));
+    console.log(`[API/Analyze] Gemini 3 Pro responded. Parsing JSON...`);
+    const parsed = JSON.parse(text);
+    return res.status(200).json(parsed);
   } catch (error: any) {
-    console.error("Forensic API Error:", error);
-    return res.status(500).json({ error: 'Analysis failed' });
+    console.error(`[API/Analyze] Critical failure using Gemini 3 Pro:`, error);
+    
+    // Check for "Requested entity was not found" or other model-specific errors
+    if (error.message?.includes("not found")) {
+      console.error("[API/Analyze] Model gemini-3-pro-preview may not be available for this API key.");
+    }
+
+    return res.status(500).json({ 
+      error: 'Analysis failed', 
+      details: error.message,
+      model: PRIMARY_MODEL 
+    });
   }
 }

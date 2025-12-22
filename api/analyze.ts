@@ -23,17 +23,17 @@ export default async function handler(req: any, res: any) {
   console.log(`[API/Analyze] Processing high-fidelity forensic audit for ${commit.hash.substring(0, 8)}`);
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Switching to Pro for superior reasoning in complex diffs
-  const PRIMARY_MODEL = 'gemini-3-pro-preview';
+  
+  // Strategy: Try Pro first for deep reasoning, fallback to Flash if it fails.
+  const modelsToTry = ['gemini-3-pro-preview', 'gemini-3-flash-preview'];
+  let lastError = null;
 
-  // Optimization: Increased context window for Pro
-  const MAX_DIFF_CHARS = 4000; 
-  const diffContext = commit.diffs.map((d: any) => {
+  // Optimization: Truncate context to keep within safety limits
+  const MAX_DIFF_CHARS = 3500; 
+  const diffContext = commit.diffs.slice(0, 10).map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
-
-  console.debug(`[API/Analyze] Diff context generated. Length: ${diffContext.length} chars`);
 
   const prompt = `Act as a senior software architect and world-class security researcher. 
 Perform a deep forensic audit of this commit diff. Identify architectural risks, potential regressions, and semantic intent.
@@ -62,16 +62,12 @@ Return a JSON object following this EXACT structure:
 
 Respond ONLY with valid JSON.`;
 
-  try {
-    console.log(`[API/Analyze] Calling Gemini 3 Pro with thinkingConfig...`);
-    
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: PRIMARY_MODEL,
-      contents: prompt,
-      config: {
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`[API/Analyze] Attempting audit with model: ${modelName}`);
+      
+      const config: any = {
         responseMimeType: "application/json",
-        // Enabling thinking for deep architectural reasoning
-        thinkingConfig: { thinkingBudget: 16384 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -89,31 +85,37 @@ Respond ONLY with valid JSON.`;
           },
           required: ["category", "conceptualSummary", "summary", "logicChanges", "bugRiskExplanation", "dangerReasoning", "probabilityScore", "riskFactors", "fixStrategies", "failureSimulation", "hiddenCouplings"]
         }
+      };
+
+      // Only Pro supports thinkingConfig
+      if (modelName.includes('pro')) {
+        config.thinkingConfig = { thinkingBudget: 8192 }; // Reduced slightly for reliability
       }
-    });
 
-    const text = response.text;
-    if (!text) {
-      console.error("[API/Analyze] Pro model returned empty text. Checking candidates...");
-      console.debug(JSON.stringify(response.candidates));
-      throw new Error('Empty AI response');
+      const response: GenerateContentResponse = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config
+      });
+
+      const text = response.text;
+      if (!text) throw new Error('Empty AI response');
+
+      console.log(`[API/Analyze] Success with ${modelName}. Parsing JSON...`);
+      const parsed = JSON.parse(text);
+      return res.status(200).json(parsed);
+
+    } catch (error: any) {
+      console.warn(`[API/Analyze] Failed with model ${modelName}:`, error.message);
+      lastError = error;
+      // Continue to next model in fallback loop
     }
-
-    console.log(`[API/Analyze] Gemini 3 Pro responded. Parsing JSON...`);
-    const parsed = JSON.parse(text);
-    return res.status(200).json(parsed);
-  } catch (error: any) {
-    console.error(`[API/Analyze] Critical failure using Gemini 3 Pro:`, error);
-    
-    // Check for "Requested entity was not found" or other model-specific errors
-    if (error.message?.includes("not found")) {
-      console.error("[API/Analyze] Model gemini-3-pro-preview may not be available for this API key.");
-    }
-
-    return res.status(500).json({ 
-      error: 'Analysis failed', 
-      details: error.message,
-      model: PRIMARY_MODEL 
-    });
   }
+
+  // If all models failed
+  console.error(`[API/Analyze] All models failed. Last error:`, lastError);
+  return res.status(500).json({ 
+    error: 'Analysis failed after trying all fallback models', 
+    details: lastError?.message || 'Unknown error'
+  });
 }

@@ -119,6 +119,27 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
+              {/* Hidden Coupling Detector Section */}
+              <div className="p-4 lg:p-5 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 space-y-3">
+                <div className="flex items-center gap-2">
+                   <div className="p-1 bg-cyan-500/20 rounded">
+                    <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                  </div>
+                  <h4 className="text-[10px] font-black uppercase text-cyan-400 tracking-widest">Hidden Coupling Detector</h4>
+                </div>
+                <div className="space-y-2">
+                  {analysis.hiddenCouplings.map((coupling, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2 rounded bg-black/40 border border-cyan-500/10">
+                      <div className="w-1 h-1 rounded-full bg-cyan-500" />
+                      <p className="text-[10px] lg:text-[11px] text-slate-300 font-mono tracking-tight">{coupling}</p>
+                    </div>
+                  ))}
+                  {analysis.hiddenCouplings.length === 0 && (
+                    <p className="text-[10px] text-slate-500 italic px-2">No non-obvious couplings detected.</p>
+                  )}
+                </div>
+              </div>
+
               <div className="p-4 lg:p-5 rounded-2xl border border-blue-500/30 bg-blue-500/5 space-y-4">
                 <div className="flex items-center gap-2">
                   <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Remediation Advisory</h4>

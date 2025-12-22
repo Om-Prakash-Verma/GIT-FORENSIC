@@ -48,7 +48,8 @@ export class GeminiService {
       probabilityScore: risk,
       riskFactors: ["Service Timeout Fallback", "High Volatility Heuristic"],
       fixStrategies: ["Initiate manual code review", "Execute regression test suite"],
-      failureSimulation: "Unknown. Heuristic scan suggests potential runtime regression in modified hot-paths."
+      failureSimulation: "Unknown. Heuristic scan suggests potential runtime regression in modified hot-paths.",
+      hiddenCouplings: ["Potential env var usage in " + (commit.stats.filesChanged > 0 ? "modified modules" : "unidentified scope")]
     };
   }
 }

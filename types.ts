@@ -67,6 +67,7 @@ export interface AIAnalysis {
   riskFactors: string[];
   fixStrategies: string[]; 
   failureSimulation: string; // New: "What Broke First?" predictive failure analysis
+  hiddenCouplings: string[]; // New: "Hidden Coupling Detector" for non-obvious dependencies
 }
 
 export enum BisectStatus {

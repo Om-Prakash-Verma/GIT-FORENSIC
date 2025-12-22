@@ -22,7 +22,7 @@ export default async function handler(req: any, res: any) {
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
 
-  const prompt = `Act as a senior software architect and incident responder. Audit this commit diff.
+  const prompt = `Act as a senior software architect and incident responder. Audit this commit diff for architectural risks and regressions.
 Commit Msg: ${commit.message}
 Stats: +${commit.stats.insertions} / -${commit.stats.deletions}
 
@@ -40,7 +40,8 @@ Return a JSON object with:
 7. "probabilityScore": Number (0-100).
 8. "riskFactors": Array of 2 risk strings.
 9. "fixStrategies": Array of 2 conceptual remediation strategies.
-10. "failureSimulation": Predict exactly which system component fails first if this commit has a bug. Example: "API layer fails before UI due to uncaught promise rejection in middleware."
+10. "failureSimulation": Predict exactly which system component fails first if this commit has a bug (e.g., "API fails before UI due to X").
+11. "hiddenCouplings": Array of 2-3 strings detecting non-obvious couplings like shared globals (window.X), env vars (process.env.Y), shared storage keys (localStorage), or implicit file execution ordering.
 
 Respond ONLY with valid JSON.`;
 
@@ -62,9 +63,10 @@ Respond ONLY with valid JSON.`;
             probabilityScore: { type: Type.NUMBER },
             riskFactors: { type: Type.ARRAY, items: { type: Type.STRING } },
             fixStrategies: { type: Type.ARRAY, items: { type: Type.STRING } },
-            failureSimulation: { type: Type.STRING }
+            failureSimulation: { type: Type.STRING },
+            hiddenCouplings: { type: Type.ARRAY, items: { type: Type.STRING } }
           },
-          required: ["category", "conceptualSummary", "summary", "logicChanges", "bugRiskExplanation", "dangerReasoning", "probabilityScore", "riskFactors", "fixStrategies", "failureSimulation"]
+          required: ["category", "conceptualSummary", "summary", "logicChanges", "bugRiskExplanation", "dangerReasoning", "probabilityScore", "riskFactors", "fixStrategies", "failureSimulation", "hiddenCouplings"]
         }
       }
     });

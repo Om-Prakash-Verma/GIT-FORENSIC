@@ -15,22 +15,26 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Incomplete parameters' });
   }
 
-  if (!process.env.API_KEY) {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
     console.error("[API/Analyze] API_KEY environment variable is not configured");
-    return res.status(500).json({ error: 'Server configuration error' });
+    return res.status(500).json({ error: 'Server API Key missing' });
   }
 
-  console.log(`[API/Analyze] Processing high-fidelity forensic audit for ${commit.hash.substring(0, 8)}`);
+  console.log(`[API/Analyze] Performing audit for ${commit.hash.substring(0, 8)}: ${commit.message.substring(0, 50)}`);
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
-  // Strategy: Try Pro first for deep reasoning, fallback to Flash if it fails.
-  const modelsToTry = ['gemini-3-pro-preview', 'gemini-3-flash-preview'];
-  let lastError = null;
+  // Strategy: Try Pro with Thinking -> Pro -> Flash
+  const executionStages = [
+    { model: 'gemini-3-pro-preview', useThinking: true },
+    { model: 'gemini-3-pro-preview', useThinking: false },
+    { model: 'gemini-3-flash-preview', useThinking: false }
+  ];
 
-  // Optimization: Truncate context to keep within safety limits
-  const MAX_DIFF_CHARS = 3500; 
-  const diffContext = commit.diffs.slice(0, 10).map((d: any) => {
+  // More conservative truncation to ensure payload and token stability
+  const MAX_DIFF_CHARS = 3000; 
+  const diffContext = commit.diffs.slice(0, 8).map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
@@ -62,9 +66,11 @@ Return a JSON object following this EXACT structure:
 
 Respond ONLY with valid JSON.`;
 
-  for (const modelName of modelsToTry) {
+  let lastError: any = null;
+
+  for (const stage of executionStages) {
     try {
-      console.log(`[API/Analyze] Attempting audit with model: ${modelName}`);
+      console.log(`[API/Analyze] Stage: Model=${stage.model}, Thinking=${stage.useThinking}`);
       
       const config: any = {
         responseMimeType: "application/json",
@@ -87,35 +93,42 @@ Respond ONLY with valid JSON.`;
         }
       };
 
-      // Only Pro supports thinkingConfig
-      if (modelName.includes('pro')) {
-        config.thinkingConfig = { thinkingBudget: 8192 }; // Reduced slightly for reliability
+      if (stage.useThinking) {
+        config.thinkingConfig = { thinkingBudget: 4096 }; 
       }
 
       const response: GenerateContentResponse = await ai.models.generateContent({
-        model: modelName,
+        model: stage.model,
         contents: prompt,
         config
       });
 
       const text = response.text;
-      if (!text) throw new Error('Empty AI response');
+      if (!text) {
+        console.warn(`[API/Analyze] Model ${stage.model} returned no text. Retrying with next stage.`);
+        continue;
+      }
 
-      console.log(`[API/Analyze] Success with ${modelName}. Parsing JSON...`);
       const parsed = JSON.parse(text);
+      console.log(`[API/Analyze] Audit successful using ${stage.model}`);
       return res.status(200).json(parsed);
 
     } catch (error: any) {
-      console.warn(`[API/Analyze] Failed with model ${modelName}:`, error.message);
       lastError = error;
-      // Continue to next model in fallback loop
+      const errorMsg = error.message || "Unknown error";
+      console.warn(`[API/Analyze] Failure in stage ${stage.model} (Thinking: ${stage.useThinking}):`, errorMsg);
+      
+      // If it's a safety filter error or something similar, we might want to know
+      if (errorMsg.includes("Candidate was blocked")) {
+        console.error("[API/Analyze] Content blocked by safety filters.");
+      }
     }
   }
 
-  // If all models failed
-  console.error(`[API/Analyze] All models failed. Last error:`, lastError);
+  // All stages failed
+  console.error(`[API/Analyze] Forensic pipeline exhausted. Last error:`, lastError?.message || lastError);
   return res.status(500).json({ 
-    error: 'Analysis failed after trying all fallback models', 
-    details: lastError?.message || 'Unknown error'
+    error: 'Forensic audit failed', 
+    details: lastError?.message || 'The AI service was unable to process this diff.'
   });
 }

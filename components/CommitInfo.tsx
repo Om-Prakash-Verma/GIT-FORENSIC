@@ -14,6 +14,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
   if (!commit) return null;
 
   const currentCategory = analysis?.category || commit.category || 'logic';
+  const isHeuristic = analysis?.summary.toLowerCase().includes('heuristic');
 
   return (
     <div className="w-full h-full flex flex-col bg-[#020617] overflow-y-auto custom-scrollbar relative">
@@ -73,6 +74,13 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
 
           {analysis ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               {isHeuristic && (
+                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+                   <Icons.Alert className="w-4 h-4 text-red-400 shrink-0" />
+                   <span className="text-[9px] font-black uppercase text-red-400 tracking-tighter">AI Reasoning Unavailable - Using Heuristic Fallback</span>
+                 </div>
+               )}
+
                {/* High-Impact Conceptual Summary */}
                <div className="p-5 rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent">
                 <div className="flex items-center gap-2 mb-4">

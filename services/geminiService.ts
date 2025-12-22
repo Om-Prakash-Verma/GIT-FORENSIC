@@ -19,9 +19,10 @@ export class GeminiService {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        console.error(`[GeminiService] API Error Response:`, errData);
-        throw new Error(errData.error || 'Failed to analyze commit');
+        const errData = await response.json().catch(() => ({}));
+        const errorMessage = errData.details || errData.error || `HTTP ${response.status} Error`;
+        console.error(`[GeminiService] API Error: ${errorMessage}`, errData);
+        throw new Error(errorMessage);
       }
 
       const result = await response.json() as AIAnalysis;
@@ -30,22 +31,23 @@ export class GeminiService {
     } catch (error: any) {
       console.error("[GeminiService] Analysis pipeline failed:", error.message);
       
-      console.info(`[GeminiService] Triggering heuristic fallback for ${commit.hash.substring(0, 8)}`);
-      return this.generateHeuristicAnalysis(commit);
+      // We still fall back to heuristics for UI continuity, but the error is logged.
+      // In a real production app, we might want to alert the user that heuristics are in use.
+      return this.generateHeuristicAnalysis(commit, error.message);
     }
   }
 
-  private generateHeuristicAnalysis(commit: Commit): AIAnalysis {
+  private generateHeuristicAnalysis(commit: Commit, errorSource?: string): AIAnalysis {
     const risk = commit.stats.insertions > 200 || commit.stats.filesChanged > 5 ? 65 : 15;
     const analysis = {
-      summary: "AI reasoning stalled or unavailable. Performing local heuristic scan.",
+      summary: `AI reasoning failed (${errorSource || 'Service Unreachable'}). Performing local heuristic scan.`,
       conceptualSummary: "Pattern-based intent recovery. Intent inferred from message and volatility stats.",
       category: commit.category || 'logic',
       logicChanges: [`Automated audit of ${commit.stats.filesChanged} files completed locally.`],
       bugRiskExplanation: "Heuristic evaluation based on churn volume. Deep logic delta tracing unavailable.",
       dangerReasoning: "Service interruption prevented deep forensic reasoning. Manual audit of logic deltas is required.",
       probabilityScore: risk,
-      riskFactors: ["Service Timeout Fallback", "High Volatility Heuristic"],
+      riskFactors: ["Service Timeout/API Error Fallback", "High Volatility Heuristic"],
       fixStrategies: ["Initiate manual code review", "Execute regression test suite"],
       failureSimulation: "Unknown. Heuristic scan suggests potential runtime regression in modified hot-paths.",
       hiddenCouplings: ["Potential env var usage in " + (commit.stats.filesChanged > 0 ? "modified modules" : "unidentified scope")]

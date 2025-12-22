@@ -65,7 +65,8 @@ export interface AIAnalysis {
   dangerReasoning: string; 
   probabilityScore: number;
   riskFactors: string[];
-  fixStrategies: string[]; // New: High-level remediation advisories
+  fixStrategies: string[]; 
+  failureSimulation: string; // New: "What Broke First?" predictive failure analysis
 }
 
 export enum BisectStatus {

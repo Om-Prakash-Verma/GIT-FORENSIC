@@ -47,7 +47,8 @@ export class GeminiService {
       dangerReasoning: "Service interruption prevented deep forensic reasoning. Manual audit of logic deltas is required.",
       probabilityScore: risk,
       riskFactors: ["Service Timeout Fallback", "High Volatility Heuristic"],
-      fixStrategies: ["Initiate manual code review", "Execute regression test suite"]
+      fixStrategies: ["Initiate manual code review", "Execute regression test suite"],
+      failureSimulation: "Unknown. Heuristic scan suggests potential runtime regression in modified hot-paths."
     };
   }
 }

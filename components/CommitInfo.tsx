@@ -103,6 +103,22 @@ const CommitInfo: React.FC<CommitInfoProps> = ({ commit, analysis, loading, onAn
                 </div>
               </div>
 
+              {/* What Broke First? Simulation Section */}
+              <div className="p-4 lg:p-5 rounded-2xl border border-purple-500/30 bg-purple-500/5 space-y-3">
+                <div className="flex items-center gap-2">
+                   <div className="p-1 bg-purple-500/20 rounded">
+                    <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                  </div>
+                  <h4 className="text-[10px] font-black uppercase text-purple-400 tracking-widest">What Broke First?</h4>
+                </div>
+                <div className="bg-black/40 p-4 rounded-xl border border-purple-500/10">
+                  <p className="text-[11px] lg:text-xs text-slate-200 leading-relaxed font-medium">
+                    <span className="text-purple-400 font-black mr-2">PREDICTION:</span>
+                    {analysis.failureSimulation}
+                  </p>
+                </div>
+              </div>
+
               <div className="p-4 lg:p-5 rounded-2xl border border-blue-500/30 bg-blue-500/5 space-y-4">
                 <div className="flex items-center gap-2">
                   <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Remediation Advisory</h4>

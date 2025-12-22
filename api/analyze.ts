@@ -16,14 +16,13 @@ export default async function handler(req: any, res: any) {
   const PRIMARY_MODEL = 'gemini-3-flash-preview';
 
   // Optimization: Extreme truncation for high-speed forensic scanning
-  // We only need the first 2000 chars of each file to understand intent
   const MAX_DIFF_CHARS = 2000;
   const diffContext = commit.diffs.map((d: any) => {
     const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
     return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
   }).join('\n\n');
 
-  const prompt = `Act as a senior software architect. Audit this commit diff.
+  const prompt = `Act as a senior software architect and incident responder. Audit this commit diff.
 Commit Msg: ${commit.message}
 Stats: +${commit.stats.insertions} / -${commit.stats.deletions}
 
@@ -41,11 +40,11 @@ Return a JSON object with:
 7. "probabilityScore": Number (0-100).
 8. "riskFactors": Array of 2 risk strings.
 9. "fixStrategies": Array of 2 conceptual remediation strategies.
+10. "failureSimulation": Predict exactly which system component fails first if this commit has a bug. Example: "API layer fails before UI due to uncaught promise rejection in middleware."
 
 Respond ONLY with valid JSON.`;
 
   try {
-    // Optimization: Using simple string contents for fastest processing
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: PRIMARY_MODEL,
       contents: prompt,
@@ -62,9 +61,10 @@ Respond ONLY with valid JSON.`;
             dangerReasoning: { type: Type.STRING },
             probabilityScore: { type: Type.NUMBER },
             riskFactors: { type: Type.ARRAY, items: { type: Type.STRING } },
-            fixStrategies: { type: Type.ARRAY, items: { type: Type.STRING } }
+            fixStrategies: { type: Type.ARRAY, items: { type: Type.STRING } },
+            failureSimulation: { type: Type.STRING }
           },
-          required: ["category", "conceptualSummary", "summary", "logicChanges", "bugRiskExplanation", "dangerReasoning", "probabilityScore", "riskFactors", "fixStrategies"]
+          required: ["category", "conceptualSummary", "summary", "logicChanges", "bugRiskExplanation", "dangerReasoning", "probabilityScore", "riskFactors", "fixStrategies", "failureSimulation"]
         }
       }
     });

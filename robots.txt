@@ -1,0 +1,4 @@
+
+User-agent: *
+Allow: /
+Sitemap: https://git-forensics.vercel.app/sitemap.xml

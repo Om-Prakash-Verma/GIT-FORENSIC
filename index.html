@@ -4,7 +4,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Git Time-Travel Debugger</title>
+    
+    <!-- Primary SEO Metadata -->
+    <title>Git Forensics | AI-Powered Time-Travel Debugger & Architectural Audit</title>
+    <meta name="title" content="Git Forensics | AI-Powered Time-Travel Debugger & Architectural Audit">
+    <meta name="description" content="Supercharge your Git workflow with Gemini 3 Pro. Analyze architectural pivots, regression risks, and code blast radius with high-fidelity AI reasoning.">
+    <meta name="keywords" content="git debugger, code forensics, gemini ai, root cause analysis, git bisect, d3.js visualization, software architecture, technical audit">
+    <meta name="author" content="Git Forensics Team">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://git-forensics.vercel.app/">
+    <meta property="og:title" content="Git Forensics: The AI-Powered Logic Scanner">
+    <meta property="og:description" content="Visualize your commit history as an architectural map. Use Gemini 3 Pro to predict regressions and simulated failure paths.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/Om-Prakash-Verma/GIT-FORENSICS/main/public/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://git-forensics.vercel.app/">
+    <meta property="twitter:title" content="Git Forensics | AI-Powered Time-Travel Debugger">
+    <meta property="twitter:description" content="Stop guessing what broke. Use AI-driven forensic analysis to trace logic deltas and blast radius in seconds.">
+    <meta property="twitter:image" content="https://raw.githubusercontent.com/Om-Prakash-Verma/GIT-FORENSICS/main/public/og-image.png">
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Git Forensics",
+      "operatingSystem": "Web",
+      "applicationCategory": "DeveloperApplication",
+      "description": "A production-grade developer tool for visual commit history exploration and AI-powered bug analysis.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Architectural Pivot Analysis",
+        "Blast Radius Visualization",
+        "Visual Git Bisect",
+        "AI-Powered Regression Risk Scoring"
+      ]
+    }
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -34,58 +79,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        :root {
-            color-scheme: dark;
-        }
+        :root { color-scheme: dark; }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #020617;
             color: #f8fafc;
             overflow: hidden;
             -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
             touch-action: manipulation;
         }
-        .font-mono {
-            font-family: 'Fira Code', monospace;
-        }
-        /* Custom scrollbar for black/gold theme */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(71, 85, 105, 0.3);
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(251, 191, 36, 0.4);
-        }
-        .glass {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .gold-glow {
-            box-shadow: 0 0 25px rgba(251, 191, 36, 0.1);
-        }
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* Mobile fixes for height */
-        @supports (-webkit-touch-callout: none) {
-            .h-screen {
-                height: -webkit-fill-available;
-            }
-        }
+        .font-mono { font-family: 'Fira Code', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(251, 191, 36, 0.4); }
+        .glass { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        @supports (-webkit-touch-callout: none) { .h-screen { height: -webkit-fill-available; } }
     </style>
 <script type="importmap">
 {

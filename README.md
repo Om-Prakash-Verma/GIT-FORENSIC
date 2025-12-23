@@ -11,44 +11,44 @@
 
 ---
 
-## 💎 Core Forensic Features
+## 💎 Core Forensic Intelligence Features
 
-### 1. 🧠 AI Forensic Reasoning Engine
-The heart of the suite is a tiered AI pipeline that performs deep semantic inspection of every changeset.
+The "Forensic Intelligence" section provides deep, AI-driven insights into every commit, moving beyond simple diffs to provide actionable architectural metadata:
 
-*   **Multi-Model Intelligence**: 
-    *   **Gemini 3 Pro (Thinking Mode)**: Utilizes a dedicated reasoning budget to perform complex architectural audits, identifying non-obvious logic pivots.
-    *   **Gemini 3 Flash**: Optimized for high-speed triage and rapid history scrubbing.
-*   **Predictive Failure Simulation**: Unlike standard linters, the engine predicts the specific component or state transition most likely to fail first ("First Break" analysis).
-*   **Hidden Coupling Detector**: Surfaces dependencies that aren't visible in import statements, such as environment variable shifts, shared global state, or distant database schema expectations.
-*   **Structural Risk Profiling**: Generates a 0-100% **Regression Risk Score** based on churn volume, logic complexity, and file volatility.
+### 1. 🧠 Architectural Pivot Analysis
+*   **Feature**: Conceptual Summary of Intent.
+*   **Logic**: Instead of describing *what* changed (e.g., "added a function"), the engine identifies the *technical pivot* or core architectural shift.
+*   **Value**: Instantly understand if a commit introduces a new design pattern, shifts state management, or changes a fundamental protocol.
 
-### 2. 🕸 Visual Impact Graph (Blast Radius)
-A dynamic, force-directed D3.js graph that visualizes the "ripple effect" of a commit across the codebase.
+### 2. 📈 Regression Risk Profile
+*   **Feature**: 0-100% Probability Scoring.
+*   **Logic**: Uses a combination of churn volume, file volatility, and semantic complexity to calculate the likelihood of an introduced bug.
+*   **Value**: Allows leads to prioritize high-risk (60%+) commits for manual peer review during deep-dive sessions.
 
-*   **Node Categorization**: Distinguishes between **Modified Nodes** (files edited) and **Impacted Nodes** (files likely affected via imports or proximity).
-*   **Dependency Mapping**: Uses regex-based import parsing to map actual file relationships in real-time.
-*   **Entropy Clustering**: Groups related modules based on directory structure and import frequency to show "code locality."
+### 3. 🛡️ Failure Path Simulation
+*   **Feature**: "First Break" Prediction.
+*   **Logic**: The AI simulates runtime execution over the changeset to predict the specific component, state transition, or user flow most likely to fail first if a regression exists.
+*   **Value**: Tells testers exactly where to look first during regression testing.
 
-### 3. ⚡️ Visual Git Bisect HUD
-A mathematically optimized interface for hunting regressions in large histories.
+### 4. 🕸️ Hidden Coupling Scan
+*   **Feature**: Non-Obvious Dependency Detection.
+*   **Logic**: Identifies "ghost dependencies"—side effects that aren't visible through standard imports, such as environment variable assumptions, shared database table expectations, or global CSS collisions.
+*   **Value**: Prevents "spooky action at a distance" where a change in one module breaks an unrelated part of the system.
 
-*   **Binary Search Optimization**: Automatically calculates the search space midpoint to reduce the number of steps required to find a bug.
-*   **Forensic Marking**: Tag commits as "Good" or "Bad" to visually eliminate massive ranges of history instantly.
-*   **Persistence**: Bisect sessions are saved to local storage, allowing you to resume complex hunts after a browser restart.
+### 5. 🛠️ Remediation Protocol
+*   **Feature**: Actionable Fix Strategies.
+*   **Logic**: Provides a prioritized list of strategies to mitigate identified risks, ranging from specific unit test cases to suggested refactoring steps.
+*   **Value**: Shortens the "Time to Resolution" (TTR) by providing the fix strategy alongside the bug discovery.
 
-### 4. 📈 Volatility Heatmap Timeline
-A custom SVG-based timeline that provides a high-level overview of repo health.
+### 6. ⚠️ Primary Danger Reasoning
+*   **Feature**: Worst-Case Scenario Audit.
+*   **Logic**: Isolates the single most dangerous architectural flaw or "danger zone" introduced by the change.
+*   **Value**: Focuses the architect's attention on the most critical vulnerability.
 
-*   **Churn Visualization**: Uses a neighborhood-averaging algorithm to show "spikes" in file volatility.
-*   **Category Filtering**: Instantly toggle visibility for `feat`, `fix`, `logic`, or `refactor` commits to focus on high-signal changes.
-*   **Active Tracking**: Syncs the viewport automatically to ensure the selected node is always centered.
-
-### 5. 🔍 High-Fidelity Diff Viewer
-A specialized source viewer optimized for technical audits.
-
-*   **Semantic Highlighting**: Categorizes hunks based on the type of change (Added/Removed/Modified).
-*   **Sticky Context**: File headers and hunk markers remain visible during long scrolls, ensuring you never lose track of which module you are auditing.
+### 7. 📖 Technical Intent & Logic Tracing
+*   **Feature**: Semantic Logic Summary.
+*   **Logic**: A high-fidelity breakdown of every significant logic change within the commit, translated into clear technical English.
+*   **Value**: Bridges the gap between raw patch files and architectural understanding for rapid onboarding and audit.
 
 ---
 
@@ -57,38 +57,19 @@ A specialized source viewer optimized for technical audits.
 ### **AI Dispatch Tier (`api/analyze.ts`)**
 *   **Tiered Fallback**: Attempts analysis with **Gemini 3 Pro** (4k thinking budget / 30k output ceiling) for maximum reasoning depth, falling back to **Gemini 3 Flash** if latency limits are reached.
 *   **Context Optimization**: Intelligently truncates diff payloads to ensure the most critical lines of a patch are prioritized within the LLM's context window.
-*   **Schema Enforcement**: Strictly validates AI output against a custom `AIAnalysis` interface to prevent UI hydration failures.
 
-### **State Orchestration Layer (`hooks/useGitRepo.ts`)**
-*   **Lazy Hydration**: Initially loads lightweight metadata, only fetching heavy diff patches and impact maps when a specific commit is selected to save bandwidth.
-*   **State Guarding**: Implements a `currentHashRef` locking mechanism to prevent race conditions where background hydration might overwrite a fresh AI analysis.
+### **Visual Impact Graph (`components/ImpactGraph.tsx`)**
+*   **Blast Radius Visualization**: A D3-powered force-directed graph that maps modified files to their potentially impacted neighbors based on directory structure and import parsing.
 
-### **Dependency Analysis (`services/dependencyService.ts`)**
-*   **Regex-Based Trace**: Scans patches for `import`, `require`, and `from` keywords to build a real-time dependency tree without needing a full build environment.
-
----
-
-## 🚀 Deployment & Setup
-
-### **Environment Requirements**
-*   **Node.js**: v18+ 
-*   **API Key**: A valid Google Gemini API Key.
-
-### **Configuration**
-1. Clone the repository.
-2. Create a `.env` or set the environment variable:
-   ```env
-   API_KEY=your_gemini_api_key_here
-   ```
-3. Install dependencies: `npm install`
-4. Start the forensic suite: `npm run dev`
+### **Git Bisect HUD (`hooks/useGitBisect.ts`)**
+*   **Binary History Search**: A state-machine driven interface for quickly isolating the specific commit that introduced a regression using standard "Good/Bad" marking logic.
 
 ---
 
 ## 🛠 Usage Protocol
 1.  **Import**: Paste a public GitHub URL into the landing page.
 2.  **Scrub**: Use the Timeline to find areas of high volatility (gold glow).
-3.  **Audit**: Select a commit and click "Run Forensic Audit." Select "Gemini 3 Pro" for architectural changes.
+3.  **Audit**: Select a commit and click "Run Forensic Audit." 
 4.  **Trace**: Use the Impact Graph to see which distant files might break because of the current change.
 5.  **Bisect**: If a bug is found, use the search icon in the sidebar to enter Bisect mode and isolate the culprit.
 

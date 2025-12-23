@@ -19,13 +19,14 @@ export const useGitRepo = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isHydrating, setIsHydrating] = useState(false);
   const [hydrationError, setHydrationError] = useState<string | null>(null);
-  
   const [impactData, setImpactData] = useState<ImpactData | null>(null);
   const [isMappingImpact, setIsMappingImpact] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
+  
+  // Cross-turn context cache
+  const [auditHistory, setAuditHistory] = useState<Record<string, string>>({});
 
   const gemini = useMemo(() => new GeminiService(), []);
-  
   const currentHashRef = useRef<string | null>(null);
 
   // Persistence: Recovery
@@ -38,21 +39,32 @@ export const useGitRepo = () => {
         setCommits(parsed.commits);
         setSelectedHash(parsed.selectedHash);
         setActiveFilePath(parsed.activeFilePath);
+        setAuditHistory(parsed.auditHistory || {});
         setIsLoaded(true);
       } catch (e) {
-        console.error("[useGitRepo] Failed to restore repo session", e);
+        console.error("[useGitRepo] Session recovery failed", e);
       }
     }
   }, []);
 
-  // Persistence: Save
+  // Persistence: Save (Optimized to prevent bloat)
   useEffect(() => {
     if (isLoaded && metadata) {
+      // FIX: Strip heavy patch data before saving to localStorage
+      const prunedCommits = commits.map(c => ({
+        ...c,
+        diffs: c.diffs.map(d => ({ ...d, patch: '', hunks: [] }))
+      }));
+
       localStorage.setItem(STORAGE_KEY_REPO, JSON.stringify({
-        metadata, commits, selectedHash, activeFilePath
+        metadata, 
+        commits: prunedCommits, 
+        selectedHash, 
+        activeFilePath,
+        auditHistory
       }));
     }
-  }, [isLoaded, metadata, commits, selectedHash, activeFilePath]);
+  }, [isLoaded, metadata, commits, selectedHash, activeFilePath, auditHistory]);
 
   const loadRepository = async (path: string) => {
     setIsPathLoading(true);
@@ -81,17 +93,15 @@ export const useGitRepo = () => {
     setActiveFilePath(null);
     setImpactData(null);
     setRepoPath('');
+    setAuditHistory({});
     setHydrationError(null);
     currentHashRef.current = null;
   }, []);
 
-  // Sync effect for selected hash changes
   useEffect(() => {
     if (!selectedHash || commits.length === 0 || !metadata) return;
     
-    // Only clear analysis if the hash is actually DIFFERENT from the last known hash
     if (currentHashRef.current !== selectedHash) {
-      console.log(`[useGitRepo] Navigated to ${selectedHash.substring(0, 8)}. Clearing forensic cache.`);
       setAnalysis(null);
       setImpactData(null);
       setHydrationError(null);
@@ -105,8 +115,7 @@ export const useGitRepo = () => {
     const prepareCommit = async () => {
       let activeCommit = commit;
       
-      // Hydrate if diffs are missing (e.g. initial load from GitHub)
-      if (commit.diffs.length === 0 && metadata.path.includes('github.com')) {
+      if (commit.diffs.length === 0 || !commit.diffs[0].patch) {
         setIsHydrating(true);
         try {
           activeCommit = await GitService.hydrateCommitDiffs(metadata.path, commit);
@@ -123,7 +132,6 @@ export const useGitRepo = () => {
         }
       }
 
-      // Generate impact graph if missing
       if (activeCommit.diffs.length > 0 && !impactData) {
         setIsMappingImpact(true);
         try {
@@ -140,37 +148,35 @@ export const useGitRepo = () => {
     prepareCommit();
   }, [selectedHash, metadata?.path]);
 
-  // Sync active file with current commit's diffs
-  useEffect(() => {
-    const commit = commits.find(c => c.hash === selectedHash);
-    if (commit && commit.diffs.length > 0) {
-      if (!activeFilePath || !commit.diffs.find(d => d.path === activeFilePath)) {
-        setActiveFilePath(commit.diffs[0].path);
-      }
-    } else {
-      setActiveFilePath(null);
-    }
-  }, [selectedHash, commits.length]);
-
   const analyzeCommit = async () => {
     const commit = commits.find(c => c.hash === selectedHash);
     if (!commit || commit.diffs.length === 0 || isAnalyzing) return;
 
     setIsAnalyzing(true);
     try {
-      console.log(`[useGitRepo] Dispatching audit request. Target Model: ${selectedModel}`);
-      const result = await gemini.analyzeCommit(commit, selectedModel);
+      // ENHANCEMENT: Pass historical context to the AI for smarter reasoning
+      const previousSummaries = Object.values(auditHistory).slice(-3).join('\n');
       
-      // Safety check: ensure we are still on the same hash before committing analysis result
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          commit, 
+          model: selectedModel,
+          previousAnalyses: previousSummaries
+        })
+      });
+
+      if (!response.ok) throw new Error("Audit failed");
+      const result = await response.json();
+      
       if (currentHashRef.current === selectedHash) {
-        console.log("[useGitRepo] Analysis successful. Updating state.");
         setAnalysis(result);
-      } else {
-        console.warn("[useGitRepo] Analysis result discarded: Hash mismatch (navigated away).");
+        setAuditHistory(prev => ({ ...prev, [selectedHash]: result.conceptualSummary }));
       }
       return true;
     } catch (err) {
-      console.error("[useGitRepo] Analysis process failed:", err);
+      console.error("[useGitRepo] Analysis failed:", err);
       return false;
     } finally {
       setIsAnalyzing(false);

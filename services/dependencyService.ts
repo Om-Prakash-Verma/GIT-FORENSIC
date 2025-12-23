@@ -2,79 +2,76 @@
 import { FileDiff, ImpactData, ImpactNode, ImpactLink } from '../types';
 
 export class DependencyService {
-  private static GITHUB_API_BASE = 'https://api.github.com/repos';
-
   /**
-   * Analyzes modified files in a commit to build a dependency graph.
-   * Uses regex to extract imports and maps relationships.
+   * Enhanced dependency builder with alias support and robust regex.
    */
   static async buildImpactGraph(repoUrl: string, commitHash: string, diffs: FileDiff[]): Promise<ImpactData> {
-    const match = repoUrl.match(/github\.com\/([\w-]+)\/([\w.-]+)/);
-    if (!match) return { nodes: [], links: [] };
-    
-    const repoPath = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
     const nodes: ImpactNode[] = [];
     const links: ImpactLink[] = [];
     const nodeMap = new Map<string, ImpactNode>();
 
-    // Initialize nodes for all modified files
+    // 1. Initialize nodes for modified files
     diffs.forEach(diff => {
       const node: ImpactNode = {
         id: diff.path,
         name: diff.path.split('/').pop() || diff.path,
         isModified: true,
         type: 'file',
-        impactScore: (diff.stats.additions + diff.stats.deletions) / 10
+        impactScore: Math.min((diff.stats.additions + diff.stats.deletions) / 5, 25) + 5
       };
       nodes.push(node);
       nodeMap.set(diff.path, node);
     });
 
-    // For a real production app, we would fetch file contents and parse them.
-    // In this environment, we'll simulate the "blast radius" detection 
-    // by finding related files in the same directories and potential import patterns.
-    
+    // 2. Identify and Link Relationships
     for (const diff of diffs) {
       if (!diff.patch) continue;
 
-      // Extract potential imports from patch context (simple regex fallback)
-      const importRegex = /(?:import|from|require)\s+['"]([^'"]+)['"]/g;
+      // Robust Regex for ESM, CJS, and Dynamic Imports
+      const importRegex = /(?:import|from|require|export)\s+(?:[\w\s{},*]*\s+from\s+)?['"]([^'"]+)['"]/g;
       let m;
       while ((m = importRegex.exec(diff.patch)) !== null) {
-        const importPath = m[1];
-        // Only care about relative imports for internal dependency tracking
-        if (importPath.startsWith('.')) {
-          const resolvedPath = this.resolvePath(diff.path, importPath);
-          
+        let importPath = m[1];
+        let resolvedPath = '';
+
+        // Handle Aliases (Assuming @/ maps to src/ or root)
+        if (importPath.startsWith('@/')) {
+          resolvedPath = importPath.replace('@/', 'src/');
+          if (!resolvedPath.includes('.')) resolvedPath += '.ts';
+        } else if (importPath.startsWith('.')) {
+          resolvedPath = this.resolvePath(diff.path, importPath);
+        }
+
+        if (resolvedPath) {
           if (!nodeMap.has(resolvedPath)) {
             const newNode: ImpactNode = {
               id: resolvedPath,
               name: resolvedPath.split('/').pop() || resolvedPath,
               isModified: false,
               type: 'file',
-              impactScore: 1
+              impactScore: 5
             };
             nodes.push(newNode);
             nodeMap.set(resolvedPath, newNode);
           }
 
-          links.push({
-            source: diff.path,
-            target: resolvedPath,
-            value: 1
-          });
+          if (!links.some(l => l.source === diff.path && l.target === resolvedPath)) {
+            links.push({ source: diff.path, target: resolvedPath, value: 2 });
+          }
         }
       }
 
-      // Heuristic: Link files in the same directory as "potentially affected"
+      // Proximity Heuristic: Files in the same directory often share context
       const dir = diff.path.substring(0, diff.path.lastIndexOf('/'));
       diffs.forEach(other => {
-        if (other.path !== diff.path && other.path.startsWith(dir) && !links.find(l => (l.source === diff.path && l.target === other.path))) {
-          links.push({
-            source: diff.path,
-            target: other.path,
-            value: 0.5
-          });
+        if (other.path !== diff.path && other.path.startsWith(dir)) {
+          const alreadyLinked = links.some(l => 
+            (l.source === diff.path && l.target === other.path) || 
+            (l.source === other.path && l.target === diff.path)
+          );
+          if (!alreadyLinked) {
+            links.push({ source: diff.path, target: other.path, value: 0.8 });
+          }
         }
       });
     }
@@ -89,16 +86,16 @@ export class DependencyService {
     const importParts = importPath.split('/');
     for (const part of importParts) {
       if (part === '.') continue;
-      if (part === '..') {
-        parts.pop();
-      } else {
-        parts.push(part);
-      }
+      if (part === '..') parts.pop();
+      else parts.push(part);
     }
     
     let resolved = parts.join('/');
-    // Append likely extensions if missing
-    if (!resolved.includes('.')) resolved += '.ts'; 
+    // Heuristic: common extensions
+    if (!resolved.includes('.')) {
+      if (resolved.toLowerCase().includes('component')) resolved += '.tsx';
+      else resolved += '.ts';
+    }
     return resolved;
   }
 }

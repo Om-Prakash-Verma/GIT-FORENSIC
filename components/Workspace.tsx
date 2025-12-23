@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Commit, RepositoryMetadata, AIAnalysis, BisectStatus, BisectState, ImpactData } from '../types.ts';
 import Timeline from './Timeline.tsx';
@@ -50,11 +49,12 @@ const Workspace: React.FC<WorkspaceProps> = ({
 
   const handleAnalyzeWithTransition = async () => {
     await onAnalyze();
+    // Auto-switch on mobile to show the analysis result
     if (window.innerWidth < 1024) setMobileView('analysis');
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen w-screen bg-[#020617] text-slate-200 overflow-hidden font-sans">
+    <div className="flex flex-col lg:flex-row h-screen w-screen bg-[#020617] text-slate-200 overflow-hidden font-sans selection:bg-amber-500/30">
       <NavigationSidebar 
         bisectActive={bisect.isActive} 
         onExit={onExit} 
@@ -77,35 +77,39 @@ const Workspace: React.FC<WorkspaceProps> = ({
             bisectRange={bisect.isActive ? { start: bisect.goodHash, end: bisect.badHash } : undefined}
           />
           
-          <div className="bg-black/40 px-6 py-2 border-y border-white/5 flex items-center justify-between shrink-0">
+          <div className="bg-black/60 px-6 py-2 border-y border-white/5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
                <div className="flex items-center gap-2 shrink-0">
                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                 <span className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Volatility Peaks</span>
+                 <span className="text-[7px] lg:text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">Volatility Peaks</span>
                </div>
                <div className="hidden sm:flex items-center gap-2 shrink-0">
                  <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
-                 <span className="text-[8px] lg:text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Stability Baselines</span>
+                 <span className="text-[7px] lg:text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">Stability Baseline</span>
                </div>
             </div>
-            <p className="hidden md:block text-[8px] font-mono text-slate-700 uppercase">Engine: Forensic.LogicScanner-v3.3</p>
+            <p className="hidden md:block text-[7px] font-mono text-slate-600 uppercase tracking-widest">Forensic Engine: V3.5-PRO-ENABLED</p>
           </div>
 
-          <nav className="lg:hidden flex border-b border-white/5 bg-black/30 shrink-0 h-14 overflow-x-auto no-scrollbar">
+          {/* Mobile Tab Navigation */}
+          <nav className="lg:hidden grid grid-cols-4 border-b border-white/5 bg-[#020617] shrink-0 h-16">
             {(['files', 'diff', 'impact', 'analysis'] as MobileView[]).map(view => (
               <button 
                 key={view} 
                 onClick={() => setMobileView(view)} 
-                className={`flex-1 min-w-[80px] flex flex-col items-center justify-center gap-1 transition-all relative ${mobileView === view ? 'text-amber-500' : 'text-slate-500'}`}
+                className={`flex flex-col items-center justify-center gap-1.5 transition-all relative ${mobileView === view ? 'text-amber-500 bg-white/[0.03]' : 'text-slate-500 hover:text-slate-300'}`}
               >
-                <span className="text-[8px] font-black uppercase tracking-widest">{view}</span>
-                {mobileView === view && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500 shadow-[0_0_10px_rgba(251,191,36,0.5)]" />}
+                <div className="text-[7px] font-black uppercase tracking-[0.2em]">{view}</div>
+                {mobileView === view && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500 shadow-[0_0_12px_rgba(251,191,36,0.6)]" />
+                )}
               </button>
             ))}
           </nav>
 
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-             <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} shrink-0 w-full lg:w-72 xl:w-80 h-full border-r border-white/5 transition-all duration-300`}>
+             {/* Panel 1: File Explorer */}
+             <div className={`${mobileView === 'files' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} shrink-0 w-full lg:w-64 xl:w-72 2xl:w-80 h-full transition-all duration-300 ease-in-out`}>
                <FileExplorer 
                  isVisible={true}
                  commit={currentCommit}
@@ -116,28 +120,29 @@ const Workspace: React.FC<WorkspaceProps> = ({
                />
              </div>
 
-             <div className={`${(mobileView === 'diff' || mobileView === 'impact') ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden min-w-0 bg-black/20`}>
-                <div className="hidden lg:flex items-center justify-between p-3 bg-black/20 border-b border-white/5 shrink-0">
-                  <div className="flex items-center gap-1">
+             {/* Panel 2: Center Content (Diff / Impact Graph) */}
+             <div className={`${(mobileView === 'diff' || mobileView === 'impact') ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden min-w-0 bg-black/40`}>
+                <div className="hidden lg:flex items-center justify-between px-5 py-3 bg-black/40 border-b border-white/5 shrink-0 backdrop-blur-md">
+                  <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
                     <button 
                       onClick={() => setCenterView('diff')}
-                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'diff' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
+                      className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2.5 ${centerView === 'diff' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/10' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                     >
-                      <Icons.History className="w-4 h-4" />
-                      Source Diff
+                      <Icons.History className="w-3.5 h-3.5" />
+                      Trace Diff
                     </button>
                     <button 
                       onClick={() => setCenterView('impact')}
-                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${centerView === 'impact' ? 'bg-amber-500 text-black shadow-xl shadow-amber-500/10' : 'text-slate-500 hover:bg-white/5'}`}
+                      className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2.5 ${centerView === 'impact' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/10' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                     >
-                      <Icons.Impact className="w-4 h-4" />
-                      Impact Graph
+                      <Icons.Impact className="w-3.5 h-3.5" />
+                      Blast Radius
                     </button>
                   </div>
                   
                   <button 
                     onClick={() => setIsCenterExpanded(!isCenterExpanded)}
-                    title={isCenterExpanded ? "Restore Side Panels" : "Maximize Viewport"}
+                    title={isCenterExpanded ? "Restore Sidebars" : "Full Viewport"}
                     className={`p-2.5 rounded-xl border transition-all ${isCenterExpanded ? 'bg-amber-500/20 border-amber-500/40 text-amber-500' : 'border-white/5 text-slate-500 hover:bg-white/5'}`}
                   >
                     {isCenterExpanded ? (
@@ -148,8 +153,9 @@ const Workspace: React.FC<WorkspaceProps> = ({
                   </button>
                 </div>
 
-                <div className="flex-1 relative overflow-hidden transition-all duration-300">
-                  {(centerView === 'diff' && mobileView !== 'impact') ? (
+                <div className="flex-1 relative overflow-hidden bg-[#020617]/40">
+                  {/* Tablet specific layout adjustment: merge mobile view logic into center view logic */}
+                  {(centerView === 'diff' && mobileView !== 'impact') || (mobileView === 'diff') ? (
                     <DiffView diffs={currentCommit?.diffs || []} activeFilePath={activeFilePath} />
                   ) : (
                     <ImpactGraph data={impactData} loading={isMappingImpact} />
@@ -157,7 +163,8 @@ const Workspace: React.FC<WorkspaceProps> = ({
                 </div>
              </div>
 
-             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} w-full lg:w-[380px] xl:w-[440px] flex-col shrink-0 h-full overflow-hidden border-l border-white/5 bg-[#020617] transition-all duration-300`}>
+             {/* Panel 3: Forensic Intelligence */}
+             <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} w-full lg:w-[360px] xl:w-[400px] 2xl:w-[460px] flex-col shrink-0 h-full overflow-hidden transition-all duration-300 ease-in-out`}>
                <CommitInfo 
                  commit={currentCommit} analysis={analysis} loading={isAnalyzing || isHydrating}
                  onAnalyze={handleAnalyzeWithTransition}

@@ -1,7 +1,6 @@
-
 import React, { useEffect } from 'react';
 import { Commit, AIAnalysis } from '../types.ts';
-import { Icons, COLORS } from '../constants.tsx';
+import { Icons } from '../constants.tsx';
 
 interface CommitInfoProps {
   commit: Commit | null;
@@ -12,6 +11,7 @@ interface CommitInfoProps {
   setSelectedModel: (m: string) => void;
 }
 
+// Fix: Import React to resolve the missing namespace 'React' error for React.FC
 const CommitInfo: React.FC<CommitInfoProps> = ({ 
   commit, analysis, loading, onAnalyze, selectedModel, setSelectedModel 
 }) => {
@@ -89,9 +89,13 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
             <select 
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1 outline-none focus:border-amber-500/50"
+              className="bg-slate-900 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-200 px-3 py-1.5 outline-none focus:border-amber-500/50 cursor-pointer appearance-none text-center"
             >
-              {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {models.map(m => (
+                <option key={m.id} value={m.id} className="bg-slate-900 text-white py-2">
+                  {m.name.toUpperCase()}
+                </option>
+              ))}
             </select>
           </div>
 

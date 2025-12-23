@@ -9,14 +9,14 @@ export class GitService {
 
   static async loadRepository(pathOrUrl: string): Promise<{ metadata: RepositoryMetadata; commits: Commit[] }> {
     console.log(`[GitService] Initializing repository load for path: ${pathOrUrl}`);
-    const isGitHub = this.isGitHubUrl(pathOrUrl);
     
-    if (!isGitHub) {
-      console.error(`[GitService] Invalid repository URL format provided: ${pathOrUrl}`);
-      throw new Error("Invalid Repository: Only public GitHub repository URLs are supported (e.g., https://github.com/user/repo).");
+    try {
+      const { owner, repo } = this.parseGitHubUrl(pathOrUrl);
+      return this.fetchGitHubRepository(owner, repo);
+    } catch (err: any) {
+      console.error(`[GitService] Load failed: ${err.message}`);
+      throw err;
     }
-
-    return this.fetchGitHubRepository(pathOrUrl);
   }
 
   static calculateVolatility(stats: { insertions: number, deletions: number, filesChanged: number }, category: CommitCategory): number {
@@ -58,40 +58,68 @@ export class GitService {
     return category;
   }
 
-  private static isGitHubUrl(input: string): boolean {
-    return /github\.com\/[\w-]+\/[\w.-]+/.test(input);
-  }
-
-  private static async fetchGitHubRepository(url: string): Promise<{ metadata: RepositoryMetadata; commits: Commit[] }> {
-    const match = url.match(/github\.com\/([\w-]+)\/([\w.-]+)/);
-    if (!match) {
-      console.error("[GitService] Regex match failed for GitHub URL parsing.");
-      throw new Error("Could not parse GitHub URL structure.");
-    }
-
-    const owner = match[1];
-    const repo = match[2].replace(/\.git$/, '');
-    const repoPath = `${owner}/${repo}`;
-    console.log(`[GitService] Fetching metadata for ${repoPath}`);
+  private static parseGitHubUrl(input: string): { owner: string; repo: string } {
+    const trimmed = input.trim();
+    if (!trimmed) throw new Error("Repository path cannot be empty.");
 
     try {
-      const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`);
+      const urlStr = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      const url = new URL(urlStr);
+      
+      if (!url.hostname.includes('github.com')) {
+        throw new Error("Only GitHub repositories are supported.");
+      }
+
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length < 2) {
+        throw new Error("Invalid GitHub URL format. Expected: github.com/owner/repo");
+      }
+
+      return {
+        owner: parts[0],
+        repo: parts[1].replace(/\.git$/, '')
+      };
+    } catch (e: any) {
+      if (e.name === 'TypeError') {
+        // Fallback for non-URL strings like "owner/repo"
+        const parts = trimmed.split('/').filter(Boolean);
+        if (parts.length >= 2) {
+          return { owner: parts[0], repo: parts[1].replace(/\.git$/, '') };
+        }
+      }
+      throw new Error(e.message || "Invalid repository URL.");
+    }
+  }
+
+  private static async fetchGitHubRepository(owner: string, repo: string): Promise<{ metadata: RepositoryMetadata; commits: Commit[] }> {
+    const repoPath = `${owner}/${repo}`;
+    console.log(`[GitService] Fetching ${repoPath}`);
+
+    const headers = {
+      'Accept': 'application/vnd.github.v3+json'
+    };
+
+    try {
+      const metaResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}`, { headers });
       if (!metaResponse.ok) {
         console.error(`[GitService] GitHub Metadata API Error: ${metaResponse.status}`);
         if (metaResponse.status === 403) throw new Error("GitHub API Rate Limit Exceeded.");
-        if (metaResponse.status === 404) throw new Error("Repository not found.");
+        if (metaResponse.status === 404) throw new Error("Repository not found. Please ensure it is a public repository.");
         throw new Error(`GitHub Sync Error: ${metaResponse.status}`);
       }
       const metaData = await metaResponse.json();
 
-      console.log(`[GitService] Fetching commit history for ${repoPath}`);
-      const commitsResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits?per_page=100`);
+      console.log(`[GitService] Fetching history for ${repoPath}`);
+      const commitsResponse = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits?per_page=100`, { headers });
       if (!commitsResponse.ok) {
         console.error(`[GitService] GitHub Commits API Error: ${commitsResponse.status}`);
         throw new Error(`Failed to fetch history (Status ${commitsResponse.status})`);
       }
       const commitsData = await commitsResponse.json();
-      console.log(`[GitService] Successfully fetched ${commitsData.length} commits`);
+
+      if (!Array.isArray(commitsData)) {
+        throw new Error("Unexpected API response: Commits data is not an array.");
+      }
 
       const commits: Commit[] = commitsData.map((c: any) => {
         const message = c.commit.message;
@@ -113,7 +141,7 @@ export class GitService {
       return {
         metadata: {
           name: metaData.name,
-          path: url,
+          path: `https://github.com/${repoPath}`,
           currentBranch: metaData.default_branch,
           totalCommits: commits.length
         },
@@ -126,19 +154,18 @@ export class GitService {
   }
 
   static async hydrateCommitDiffs(repoUrl: string, commit: Commit): Promise<Commit> {
-    console.log(`[GitService] Hydrating diffs for commit: ${commit.hash.substring(0, 8)}`);
-    if (!this.isGitHubUrl(repoUrl) || commit.diffs.length > 0) {
-      console.debug("[GitService] Hydration skipped: Invalid URL or already hydrated.");
-      return commit;
-    }
+    console.log(`[GitService] Hydrating diffs for: ${commit.hash.substring(0, 8)}`);
+    
+    if (commit.diffs.length > 0) return commit;
 
-    const match = repoUrl.match(/github\.com\/([\w-]+)\/([\w.-]+)/);
-    if (!match) return commit;
-    
-    const repoPath = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
-    
     try {
-      const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`);
+      const { owner, repo } = this.parseGitHubUrl(repoUrl);
+      const repoPath = `${owner}/${repo}`;
+      
+      const response = await fetch(`${this.GITHUB_API_BASE}/${repoPath}/commits/${commit.hash}`, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' }
+      });
+
       if (!response.ok) {
         console.error(`[GitService] Hydration API Error: ${response.status}`);
         throw new Error(`Commit fetch failed (${response.status})`);
@@ -152,8 +179,6 @@ export class GitService {
         deletions: data.stats.deletions,
         filesChanged: data.files.length
       };
-
-      console.debug(`[GitService] Commit ${commit.hash.substring(0, 8)} stats:`, stats);
 
       const diffs: FileDiff[] = data.files.map((file: any) => ({
         path: file.filename,
@@ -189,14 +214,10 @@ export class BisectEngine {
     badHash: string,
     eliminated: Set<string>
   ) {
-    console.log(`[BisectEngine] Calculating next step. Good: ${goodHash.substring(0, 7)}, Bad: ${badHash.substring(0, 7)}`);
-    console.debug(`[BisectEngine] Eliminated count: ${eliminated.size}`);
-
     const goodIdx = commits.findIndex(c => c.hash === goodHash);
     const badIdx = commits.findIndex(c => c.hash === badHash);
 
     if (goodIdx === -1 || badIdx === -1) {
-      console.warn("[BisectEngine] Indices not found for hashes.");
       return { midpoint: null, isDone: true, suspected: null, remaining: 0, estimatedSteps: 0 };
     }
 
@@ -210,17 +231,12 @@ export class BisectEngine {
       }
     }
 
-    console.debug(`[BisectEngine] Search space candidates: ${candidates.length}`);
-
     if (candidates.length <= 1) {
-      console.log(`[BisectEngine] Search complete. Culprit identified: ${badHash}`);
       return { midpoint: null, isDone: true, suspected: badHash, remaining: 0, estimatedSteps: 0 };
     }
 
     const mid = Math.floor(candidates.length / 2);
     const midpoint = candidates[mid];
-
-    console.log(`[BisectEngine] New midpoint selected: ${midpoint.substring(0, 7)}`);
 
     return {
       midpoint,

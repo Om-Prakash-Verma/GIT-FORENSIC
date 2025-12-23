@@ -2,22 +2,13 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
 export default async function handler(req: any, res: any) {
-  console.log(`[API/Analyze] Request received. Method: ${req.method}`);
-  
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   const { commit, model: requestedModel, previousAnalyses } = req.body;
-
-  if (!commit) {
-    return res.status(400).json({ error: 'Incomplete parameters' });
-  }
+  if (!commit) return res.status(400).json({ error: 'Incomplete parameters' });
 
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Server API Key missing' });
-  }
+  if (!apiKey) return res.status(500).json({ error: 'Server API Key missing' });
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -27,69 +18,70 @@ export default async function handler(req: any, res: any) {
     'gemini-2.5-flash': 'gemini-flash-lite-latest'
   };
 
-  const targetId = modelIdMap[requestedModel] || (requestedModel !== 'auto' ? requestedModel : 'gemini-3-pro-preview');
-
-  const allStages = [
-    { model: 'gemini-3-pro-preview', useThinking: true },
-    { model: 'gemini-3-flash-preview', useThinking: false },
-    { model: 'gemini-flash-lite-latest', useThinking: false }
-  ];
-
-  let executionStages = allStages;
-  if (requestedModel && requestedModel !== 'auto') {
-    const isPro = targetId.includes('pro');
-    executionStages = [
-      { model: targetId, useThinking: isPro },
-      ...allStages.filter(s => s.model !== targetId)
-    ];
-  }
-
-  // ENHANCEMENT: Increased limits and impact-based sorting
-  const MAX_DIFF_CHARS = 8000; 
-  const MAX_FILES = 20;
-
-  const sortedDiffs = [...(commit.diffs || [])].sort((a, b) => 
+  const targetId = modelIdMap[requestedModel] || 'gemini-3-pro-preview';
+  
+  // Configuration for Context Sliding
+  const CHUNK_SIZE = 5; // Files per chunk
+  const MAX_FILE_CHARS = 6000;
+  
+  const allDiffs = [...(commit.diffs || [])].sort((a, b) => 
     ((b.stats.additions + b.stats.deletions) - (a.stats.additions + a.stats.deletions))
   );
 
-  const diffContext = sortedDiffs.slice(0, MAX_FILES).map((d: any) => {
-    const patch = (d.patch || "").substring(0, MAX_DIFF_CHARS);
-    return `### FILE: ${d.path}\nPATCH:\n${patch}${ (d.patch || "").length > MAX_DIFF_CHARS ? "\n[TRUNCATED]" : "" }`;
-  }).join('\n\n');
+  // Divide into windows
+  const chunks = [];
+  for (let i = 0; i < allDiffs.length; i += CHUNK_SIZE) {
+    chunks.push(allDiffs.slice(i, i + CHUNK_SIZE));
+  }
 
-  const systemInstruction = `You are a world-class senior software architect. 
-Perform a deep forensic audit. Identify architectural risks and semantic intent.
-${previousAnalyses ? `CONTEXT FROM PREVIOUS AUDITS: ${previousAnalyses}` : ''}
-Return a strictly valid JSON response.`;
+  try {
+    const partialSummaries: string[] = [];
 
-  const userPrompt = `Commit Message: ${commit.message}
-Stats: +${commit.stats.insertions} / -${commit.stats.deletions} insertions/deletions across ${commit.stats.filesChanged} files.
+    // PASS 1: MAP PHASE (Sliding Window Analysis)
+    for (let i = 0; i < Math.min(chunks.length, 3); i++) { // Limit to 3 chunks for latency
+      const chunkContext = chunks[i].map((d: any) => {
+        const patch = (d.patch || "").substring(0, MAX_FILE_CHARS);
+        return `FILE: ${d.path}\nPATCH:\n${patch}`;
+      }).join('\n\n');
 
-[COMMIT DIFF DATA]
-${diffContext}
+      const partialResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview', // Use faster model for map phase
+        contents: `Analyze this subset of code changes and provide a high-density technical summary of logic shifts and potential bugs:\n\n${chunkContext}`,
+        config: { systemInstruction: "You are a specialized code analyzer. Be extremely concise and technical." }
+      });
+      
+      if (partialResponse.text) partialSummaries.push(partialResponse.text);
+    }
 
-[INSTRUCTIONS]
-Return a JSON object following this EXACT structure:
+    // PASS 2: REDUCE PHASE (Final Synthesis)
+    const synthesisPrompt = `
+Commit Message: ${commit.message}
+Historical Context: ${previousAnalyses || 'None'}
+
+[PARTIAL FORENSIC SUMMARIES FROM CHUNKS]
+${partialSummaries.join('\n---\n')}
+
+[TASK]
+Synthesize the final forensic audit JSON. Focus on cross-module impacts and architectural risk.
+Structure:
 {
-  "category": "logic" | "refactor" | "dependency" | "style" | "feat" | "fix" | "chore",
-  "conceptualSummary": "One sentence describing the core technical pivot.",
-  "summary": "Detailed technical explanation of the changes.",
-  "logicChanges": ["Significant logic change 1", "Significant logic change 2"],
-  "bugRiskExplanation": "Why this change is or isn't high risk.",
-  "dangerReasoning": "One specific architectural failure point.",
+  "category": "logic" | "refactor" | "feat" | "fix",
+  "conceptualSummary": "...",
+  "summary": "...",
+  "logicChanges": ["..."],
+  "bugRiskExplanation": "...",
+  "dangerReasoning": "...",
   "probabilityScore": 0-100,
-  "riskFactors": ["Specific risk factor 1"],
-  "fixStrategies": ["Remediation strategy 1"],
-  "failureSimulation": "What component fails first if a bug exists.",
-  "hiddenCouplings": ["Non-obvious dependency 1"]
+  "riskFactors": ["..."],
+  "fixStrategies": ["..."],
+  "failureSimulation": "...",
+  "hiddenCouplings": ["..."]
 }`;
 
-  let lastError: any = null;
-
-  for (const stage of executionStages) {
-    try {
-      const config: any = {
-        systemInstruction,
+    const finalResponse = await ai.models.generateContent({
+      model: targetId,
+      contents: synthesisPrompt,
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -108,33 +100,13 @@ Return a JSON object following this EXACT structure:
           },
           required: ["category", "conceptualSummary", "summary", "logicChanges", "bugRiskExplanation", "dangerReasoning", "probabilityScore", "riskFactors", "fixStrategies", "failureSimulation", "hiddenCouplings"]
         }
-      };
-
-      if (stage.useThinking) {
-        config.maxOutputTokens = 24000;
-        config.thinkingConfig = { thinkingBudget: 16000 }; 
       }
+    });
 
-      const response: GenerateContentResponse = await ai.models.generateContent({
-        model: stage.model,
-        contents: userPrompt,
-        config
-      });
+    return res.status(200).json(JSON.parse(finalResponse.text || "{}"));
 
-      const text = response.text;
-      if (!text) continue;
-
-      const parsed = JSON.parse(text);
-      return res.status(200).json({ ...parsed, modelUsed: stage.model });
-
-    } catch (error: any) {
-      lastError = error;
-      continue;
-    }
+  } catch (error: any) {
+    console.error("[API/Analyze] Error:", error);
+    return res.status(500).json({ error: 'Audit synthesis failed', details: error.message });
   }
-
-  return res.status(500).json({ 
-    error: 'Forensic audit failed', 
-    details: lastError?.message || 'AI service error.'
-  });
 }

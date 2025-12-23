@@ -3,7 +3,7 @@ import { FileDiff, ImpactData, ImpactNode, ImpactLink } from '../types';
 
 export class DependencyService {
   /**
-   * Enhanced dependency builder with alias support and robust regex.
+   * Refined dependency builder with multi-line regex and alias support.
    */
   static async buildImpactGraph(repoUrl: string, commitHash: string, diffs: FileDiff[]): Promise<ImpactData> {
     const nodes: ImpactNode[] = [];
@@ -23,45 +23,60 @@ export class DependencyService {
       nodeMap.set(diff.path, node);
     });
 
-    // 2. Identify and Link Relationships
+    // 2. Multi-pattern Dependency Extraction
+    const patterns = [
+      // Multi-line ESM Imports/Exports
+      /(?:import|export)\s+[\s\S]*?from\s+['"]([^'"]+)['"]/g,
+      // CommonJS require
+      /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+      // Dynamic import()
+      /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+      // Side-effect only imports
+      /import\s+['"]([^'"]+)['"]/g
+    ];
+
     for (const diff of diffs) {
       if (!diff.patch) continue;
 
-      // Robust Regex for ESM, CJS, and Dynamic Imports
-      const importRegex = /(?:import|from|require|export)\s+(?:[\w\s{},*]*\s+from\s+)?['"]([^'"]+)['"]/g;
-      let m;
-      while ((m = importRegex.exec(diff.patch)) !== null) {
-        let importPath = m[1];
-        let resolvedPath = '';
+      for (const regex of patterns) {
+        let m;
+        while ((m = regex.exec(diff.patch)) !== null) {
+          const importPath = m[1];
+          let resolvedPath = '';
 
-        // Handle Aliases (Assuming @/ maps to src/ or root)
-        if (importPath.startsWith('@/')) {
-          resolvedPath = importPath.replace('@/', 'src/');
-          if (!resolvedPath.includes('.')) resolvedPath += '.ts';
-        } else if (importPath.startsWith('.')) {
-          resolvedPath = this.resolvePath(diff.path, importPath);
-        }
-
-        if (resolvedPath) {
-          if (!nodeMap.has(resolvedPath)) {
-            const newNode: ImpactNode = {
-              id: resolvedPath,
-              name: resolvedPath.split('/').pop() || resolvedPath,
-              isModified: false,
-              type: 'file',
-              impactScore: 5
-            };
-            nodes.push(newNode);
-            nodeMap.set(resolvedPath, newNode);
+          // Alias resolution (@/ -> src/)
+          if (importPath.startsWith('@/')) {
+            resolvedPath = importPath.replace('@/', 'src/');
+          } else if (importPath.startsWith('.')) {
+            resolvedPath = this.resolvePath(diff.path, importPath);
           }
 
-          if (!links.some(l => l.source === diff.path && l.target === resolvedPath)) {
-            links.push({ source: diff.path, target: resolvedPath, value: 2 });
+          if (resolvedPath) {
+            // Ensure proper file extension if missing
+            if (!resolvedPath.includes('.')) {
+              resolvedPath += resolvedPath.toLowerCase().includes('component') ? '.tsx' : '.ts';
+            }
+
+            if (!nodeMap.has(resolvedPath)) {
+              const newNode: ImpactNode = {
+                id: resolvedPath,
+                name: resolvedPath.split('/').pop() || resolvedPath,
+                isModified: false,
+                type: 'file',
+                impactScore: 5
+              };
+              nodes.push(newNode);
+              nodeMap.set(resolvedPath, newNode);
+            }
+
+            if (!links.some(l => l.source === diff.path && l.target === resolvedPath)) {
+              links.push({ source: diff.path, target: resolvedPath, value: 2 });
+            }
           }
         }
       }
 
-      // Proximity Heuristic: Files in the same directory often share context
+      // Proximity: Contextual coupling within same directory
       const dir = diff.path.substring(0, diff.path.lastIndexOf('/'));
       diffs.forEach(other => {
         if (other.path !== diff.path && other.path.startsWith(dir)) {
@@ -70,7 +85,7 @@ export class DependencyService {
             (l.source === other.path && l.target === diff.path)
           );
           if (!alreadyLinked) {
-            links.push({ source: diff.path, target: other.path, value: 0.8 });
+            links.push({ source: diff.path, target: other.path, value: 0.5 });
           }
         }
       });
@@ -81,7 +96,7 @@ export class DependencyService {
 
   private static resolvePath(currentPath: string, importPath: string): string {
     const parts = currentPath.split('/');
-    parts.pop(); // Remove filename
+    parts.pop(); // filename
     
     const importParts = importPath.split('/');
     for (const part of importParts) {
@@ -90,12 +105,6 @@ export class DependencyService {
       else parts.push(part);
     }
     
-    let resolved = parts.join('/');
-    // Heuristic: common extensions
-    if (!resolved.includes('.')) {
-      if (resolved.toLowerCase().includes('component')) resolved += '.tsx';
-      else resolved += '.ts';
-    }
-    return resolved;
+    return parts.join('/');
   }
 }

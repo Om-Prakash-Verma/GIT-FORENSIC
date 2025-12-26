@@ -12,76 +12,77 @@ export default async function handler(req: any, res: any) {
 
   const ai = new GoogleGenAI({ apiKey });
   
+  // Model selection with Gemini 3 Pro as the preferred experimental target
   const modelIdMap: Record<string, string> = {
     'gemini-3-pro-preview': 'gemini-3-pro-preview',
     'gemini-3-flash-preview': 'gemini-3-flash-preview',
-    'gemini-2.5-flash': 'gemini-flash-lite-latest'
+    'gemini-2.5-flash': 'gemini-flash-lite-latest',
+    'auto': 'gemini-3-pro-preview' // Defaulting auto to Pro for deep experimentation
   };
 
   const targetId = modelIdMap[requestedModel] || 'gemini-3-pro-preview';
   
-  // Configuration for Context Sliding
-  const CHUNK_SIZE = 5; // Files per chunk
-  const MAX_FILE_CHARS = 6000;
-  
+  // High-density sampling for architectural depth
+  const MAX_FILE_CHARS = 8000;
   const allDiffs = [...(commit.diffs || [])].sort((a, b) => 
     ((b.stats.additions + b.stats.deletions) - (a.stats.additions + a.stats.deletions))
   );
 
-  // Divide into windows
-  const chunks = [];
-  for (let i = 0; i < allDiffs.length; i += CHUNK_SIZE) {
-    chunks.push(allDiffs.slice(i, i + CHUNK_SIZE));
-  }
+  const sampleSize = 12;
+  let sampledDiffs = allDiffs.length <= sampleSize ? allDiffs : [
+    allDiffs[0], 
+    allDiffs[allDiffs.length - 1],
+    ...allDiffs.slice(1, sampleSize - 1)
+  ];
 
   try {
-    const partialSummaries: string[] = [];
+    // PASS 1: RAW FORENSIC MAP (Uses Flash for speed in intermediate extraction)
+    const chunkContext = sampledDiffs.map((d: any) => {
+      const patch = (d.patch || "").substring(0, MAX_FILE_CHARS);
+      return `### FILE: ${d.path}\nPATCH:\n${patch}`;
+    }).join('\n\n');
 
-    // PASS 1: MAP PHASE (Sliding Window Analysis)
-    for (let i = 0; i < Math.min(chunks.length, 3); i++) { // Limit to 3 chunks for latency
-      const chunkContext = chunks[i].map((d: any) => {
-        const patch = (d.patch || "").substring(0, MAX_FILE_CHARS);
-        return `FILE: ${d.path}\nPATCH:\n${patch}`;
-      }).join('\n\n');
+    const mapResponse = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Perform a deep technical scan of these code changes. Identify logic pivots and architectural shifts:\n\n${chunkContext}`,
+      config: { 
+        systemInstruction: "You are a senior forensic code auditor. Focus on state machine changes and API breaking points. Be extremely dense.",
+        thinkingConfig: { thinkingBudget: 0 } 
+      }
+    });
 
-      const partialResponse = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview', // Use faster model for map phase
-        contents: `Analyze this subset of code changes and provide a high-density technical summary of logic shifts and potential bugs:\n\n${chunkContext}`,
-        config: { systemInstruction: "You are a specialized code analyzer. Be extremely concise and technical." }
-      });
-      
-      if (partialResponse.text) partialSummaries.push(partialResponse.text);
-    }
-
-    // PASS 2: REDUCE PHASE (Final Synthesis)
+    // PASS 2: DEEP REASONING REDUCTION (Uses Pro with 32k Thinking Budget)
     const synthesisPrompt = `
-Commit Message: ${commit.message}
-Historical Context: ${previousAnalyses || 'None'}
-
-[PARTIAL FORENSIC SUMMARIES FROM CHUNKS]
-${partialSummaries.join('\n---\n')}
+COMMIT_MSG: ${commit.message}
+HISTORY_CONTEXT: ${previousAnalyses || 'N/A'}
+EXTRACTED_DELTAS: ${mapResponse.text}
 
 [TASK]
-Synthesize the final forensic audit JSON. Focus on cross-module impacts and architectural risk.
+Synthesize a production-grade Forensic Audit JSON. Use your full reasoning capabilities to predict regressions and find hidden couplings.
+
 Structure:
 {
   "category": "logic" | "refactor" | "feat" | "fix",
-  "conceptualSummary": "...",
-  "summary": "...",
-  "logicChanges": ["..."],
-  "bugRiskExplanation": "...",
-  "dangerReasoning": "...",
+  "conceptualSummary": "High-level architectural pivot.",
+  "summary": "Technical deep-dive.",
+  "logicChanges": ["Change A", "Change B"],
+  "bugRiskExplanation": "Detailed risk analysis.",
+  "dangerReasoning": "Critical failure point.",
   "probabilityScore": 0-100,
-  "riskFactors": ["..."],
-  "fixStrategies": ["..."],
-  "failureSimulation": "...",
-  "hiddenCouplings": ["..."]
+  "riskFactors": ["Risk 1"],
+  "fixStrategies": ["Strategy 1"],
+  "failureSimulation": "Step-by-step prediction of what breaks first.",
+  "hiddenCouplings": ["Non-obvious side effects"]
 }`;
 
     const finalResponse = await ai.models.generateContent({
       model: targetId,
       contents: synthesisPrompt,
       config: {
+        // Unlocking maximum thinking budget for Pro models
+        thinkingConfig: { 
+          thinkingBudget: targetId.includes('pro') ? 32768 : 0 
+        },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -106,7 +107,7 @@ Structure:
     return res.status(200).json(JSON.parse(finalResponse.text || "{}"));
 
   } catch (error: any) {
-    console.error("[API/Analyze] Error:", error);
+    console.error("[API/Analyze] Forensic Pipeline failure:", error);
     return res.status(500).json({ error: 'Audit synthesis failed', details: error.message });
   }
 }

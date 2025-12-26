@@ -7,6 +7,8 @@ import { DependencyService } from '../services/dependencyService.ts';
 
 const STORAGE_KEY_REPO = 'git-forensics-repo-state';
 
+export type AnalysisStep = 'idle' | 'hydrating' | 'mapping' | 'thinking' | 'synthesizing' | 'done' | 'error';
+
 export const useGitRepo = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isPathLoading, setIsPathLoading] = useState(false);
@@ -17,16 +19,14 @@ export const useGitRepo = () => {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState<AnalysisStep>('idle');
   const [isHydrating, setIsHydrating] = useState(false);
   const [hydrationError, setHydrationError] = useState<string | null>(null);
   const [impactData, setImpactData] = useState<ImpactData | null>(null);
   const [isMappingImpact, setIsMappingImpact] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
   
-  // Cross-turn context cache
   const [auditHistory, setAuditHistory] = useState<Record<string, string>>({});
-
-  const gemini = useMemo(() => new GeminiService(), []);
   const currentHashRef = useRef<string | null>(null);
 
   // Persistence: Recovery
@@ -41,27 +41,18 @@ export const useGitRepo = () => {
         setActiveFilePath(parsed.activeFilePath);
         setAuditHistory(parsed.auditHistory || {});
         setIsLoaded(true);
-      } catch (e) {
-        console.error("[useGitRepo] Session recovery failed", e);
-      }
+      } catch (e) { console.error(e); }
     }
   }, []);
 
-  // Persistence: Save (Optimized to prevent bloat)
+  // Persistence: Save
   useEffect(() => {
     if (isLoaded && metadata) {
-      // FIX: Strip heavy patch data before saving to localStorage
       const prunedCommits = commits.map(c => ({
-        ...c,
-        diffs: c.diffs.map(d => ({ ...d, patch: '', hunks: [] }))
+        ...c, diffs: c.diffs.map(d => ({ ...d, patch: '', hunks: [] }))
       }));
-
       localStorage.setItem(STORAGE_KEY_REPO, JSON.stringify({
-        metadata, 
-        commits: prunedCommits, 
-        selectedHash, 
-        activeFilePath,
-        auditHistory
+        metadata, commits: prunedCommits, selectedHash, activeFilePath, auditHistory
       }));
     }
   }, [isLoaded, metadata, commits, selectedHash, activeFilePath, auditHistory]);
@@ -94,8 +85,7 @@ export const useGitRepo = () => {
     setImpactData(null);
     setRepoPath('');
     setAuditHistory({});
-    setHydrationError(null);
-    currentHashRef.current = null;
+    setAnalysisStep('idle');
   }, []);
 
   useEffect(() => {
@@ -105,16 +95,15 @@ export const useGitRepo = () => {
       setAnalysis(null);
       setImpactData(null);
       setHydrationError(null);
+      setAnalysisStep('idle');
       currentHashRef.current = selectedHash;
     }
 
-    const commitIdx = commits.findIndex(c => c.hash === selectedHash);
-    const commit = commits[commitIdx];
+    const commit = commits.find(c => c.hash === selectedHash);
     if (!commit) return;
 
     const prepareCommit = async () => {
       let activeCommit = commit;
-      
       if (commit.diffs.length === 0 || !commit.diffs[0].patch) {
         setIsHydrating(true);
         try {
@@ -125,11 +114,8 @@ export const useGitRepo = () => {
             if (idx !== -1) next[idx] = activeCommit;
             return next;
           });
-        } catch (err: any) {
-          setHydrationError(err.message);
-        } finally {
-          setIsHydrating(false);
-        }
+        } catch (err: any) { setHydrationError(err.message); }
+        finally { setIsHydrating(false); }
       }
 
       if (activeCommit.diffs.length > 0 && !impactData) {
@@ -137,14 +123,10 @@ export const useGitRepo = () => {
         try {
           const impact = await DependencyService.buildImpactGraph(metadata.path, activeCommit.hash, activeCommit.diffs);
           setImpactData(impact);
-        } catch (e) {
-          console.error("[useGitRepo] Impact mapping failed:", e);
-        } finally {
-          setIsMappingImpact(false);
-        }
+        } catch (e) { console.error(e); }
+        finally { setIsMappingImpact(false); }
       }
     };
-
     prepareCommit();
   }, [selectedHash, metadata?.path]);
 
@@ -153,10 +135,14 @@ export const useGitRepo = () => {
     if (!commit || commit.diffs.length === 0 || isAnalyzing) return;
 
     setIsAnalyzing(true);
+    setAnalysisStep('thinking');
     try {
-      // ENHANCEMENT: Pass historical context to the AI for smarter reasoning
       const previousSummaries = Object.values(auditHistory).slice(-3).join('\n');
       
+      // Simulate synthetic steps for UX
+      setTimeout(() => setAnalysisStep('mapping'), 800);
+      setTimeout(() => setAnalysisStep('synthesizing'), 2200);
+
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -173,10 +159,12 @@ export const useGitRepo = () => {
       if (currentHashRef.current === selectedHash) {
         setAnalysis(result);
         setAuditHistory(prev => ({ ...prev, [selectedHash]: result.conceptualSummary }));
+        setAnalysisStep('done');
       }
       return true;
     } catch (err) {
-      console.error("[useGitRepo] Analysis failed:", err);
+      console.error(err);
+      setAnalysisStep('error');
       return false;
     } finally {
       setIsAnalyzing(false);
@@ -186,7 +174,7 @@ export const useGitRepo = () => {
   return {
     isLoaded, isPathLoading, repoPath, setRepoPath, metadata, commits,
     selectedHash, setSelectedHash, activeFilePath, setActiveFilePath,
-    analysis, setAnalysis, isAnalyzing, isHydrating, hydrationError,
+    analysis, setAnalysis, isAnalyzing, analysisStep, isHydrating, hydrationError,
     impactData, isMappingImpact, selectedModel, setSelectedModel,
     loadRepository, resetRepo, analyzeCommit
   };

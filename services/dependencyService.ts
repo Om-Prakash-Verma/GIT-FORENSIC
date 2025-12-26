@@ -3,7 +3,7 @@ import { FileDiff, ImpactData, ImpactNode, ImpactLink } from '../types';
 
 export class DependencyService {
   /**
-   * Refined dependency builder with multi-line regex and alias support.
+   * Builds a high-fidelity impact graph using multi-pattern scanning.
    */
   static async buildImpactGraph(repoUrl: string, commitHash: string, diffs: FileDiff[]): Promise<ImpactData> {
     const nodes: ImpactNode[] = [];
@@ -23,15 +23,15 @@ export class DependencyService {
       nodeMap.set(diff.path, node);
     });
 
-    // 2. Multi-pattern Dependency Extraction
+    // 2. Enhanced Regex Patterns (Multi-line aware)
     const patterns = [
-      // Multi-line ESM Imports/Exports
+      // ESM: import/export ... from
       /(?:import|export)\s+[\s\S]*?from\s+['"]([^'"]+)['"]/g,
-      // CommonJS require
+      // CJS: require()
       /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-      // Dynamic import()
+      // Dynamic: import()
       /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-      // Side-effect only imports
+      // Static side-effect imports
       /import\s+['"]([^'"]+)['"]/g
     ];
 
@@ -44,7 +44,7 @@ export class DependencyService {
           const importPath = m[1];
           let resolvedPath = '';
 
-          // Alias resolution (@/ -> src/)
+          // Alias resolution heuristic
           if (importPath.startsWith('@/')) {
             resolvedPath = importPath.replace('@/', 'src/');
           } else if (importPath.startsWith('.')) {
@@ -52,7 +52,7 @@ export class DependencyService {
           }
 
           if (resolvedPath) {
-            // Ensure proper file extension if missing
+            // Auto-extension resolution
             if (!resolvedPath.includes('.')) {
               resolvedPath += resolvedPath.toLowerCase().includes('component') ? '.tsx' : '.ts';
             }
@@ -76,16 +76,19 @@ export class DependencyService {
         }
       }
 
-      // Proximity: Contextual coupling within same directory
-      const dir = diff.path.substring(0, diff.path.lastIndexOf('/'));
+      // Proximity: Capture directory coupling (common in Redux/Feature-slices)
+      const dirParts = diff.path.split('/');
+      dirParts.pop();
+      const parentDir = dirParts.join('/');
+
       diffs.forEach(other => {
-        if (other.path !== diff.path && other.path.startsWith(dir)) {
+        if (other.path !== diff.path && other.path.startsWith(parentDir)) {
           const alreadyLinked = links.some(l => 
             (l.source === diff.path && l.target === other.path) || 
             (l.source === other.path && l.target === diff.path)
           );
           if (!alreadyLinked) {
-            links.push({ source: diff.path, target: other.path, value: 0.5 });
+            links.push({ source: diff.path, target: other.path, value: 0.8 });
           }
         }
       });
@@ -96,7 +99,7 @@ export class DependencyService {
 
   private static resolvePath(currentPath: string, importPath: string): string {
     const parts = currentPath.split('/');
-    parts.pop(); // filename
+    parts.pop(); // remove current file
     
     const importParts = importPath.split('/');
     for (const part of importParts) {

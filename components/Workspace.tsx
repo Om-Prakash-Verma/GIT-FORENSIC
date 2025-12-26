@@ -9,6 +9,7 @@ import NavigationSidebar from './NavigationSidebar.tsx';
 import MainHeader from './MainHeader.tsx';
 import FileExplorer from './FileExplorer.tsx';
 import { Icons } from '../constants.tsx';
+import { AnalysisStep } from '../hooks/useGitRepo.ts';
 
 interface WorkspaceProps {
   metadata: RepositoryMetadata | null;
@@ -19,6 +20,7 @@ interface WorkspaceProps {
   setActiveFilePath: (path: string | null) => void;
   analysis: AIAnalysis | null;
   isAnalyzing: boolean;
+  analysisStep: AnalysisStep;
   isHydrating: boolean;
   hydrationError: string | null;
   impactData: ImpactData | null;
@@ -39,7 +41,7 @@ type CenterView = 'diff' | 'impact';
 
 const Workspace: React.FC<WorkspaceProps> = ({
   metadata, commits, selectedHash, setSelectedHash, activeFilePath, setActiveFilePath,
-  analysis, isAnalyzing, isHydrating, hydrationError, impactData, isMappingImpact,
+  analysis, isAnalyzing, analysisStep, isHydrating, hydrationError, impactData, isMappingImpact,
   onAnalyze, onExit, bisect, bisectStatuses, onMarkGood, onMarkBad, onToggleBisect,
   selectedModel, setSelectedModel
 }) => {
@@ -134,18 +136,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
                       Impact Graph
                     </button>
                   </div>
-                  
-                  <button 
-                    onClick={() => setIsCenterExpanded(!isCenterExpanded)}
-                    title={isCenterExpanded ? "Restore Side Panels" : "Maximize Viewport"}
-                    className={`p-2.5 rounded-xl border transition-all ${isCenterExpanded ? 'bg-amber-500/20 border-amber-500/40 text-amber-500' : 'border-white/5 text-slate-500 hover:bg-white/5'}`}
-                  >
-                    {isCenterExpanded ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"></path></svg>
-                    )}
-                  </button>
                 </div>
 
                 <div className="flex-1 relative overflow-hidden transition-all duration-300">
@@ -160,6 +150,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
              <div className={`${mobileView === 'analysis' ? 'flex' : 'hidden'} lg:${isCenterExpanded ? 'hidden' : 'flex'} w-full lg:w-[380px] xl:w-[440px] flex-col shrink-0 h-full overflow-hidden border-l border-white/5 bg-[#020617] transition-all duration-300`}>
                <CommitInfo 
                  commit={currentCommit} analysis={analysis} loading={isAnalyzing || isHydrating}
+                 analysisStep={analysisStep}
                  onAnalyze={handleAnalyzeWithTransition}
                  selectedModel={selectedModel}
                  setSelectedModel={setSelectedModel}

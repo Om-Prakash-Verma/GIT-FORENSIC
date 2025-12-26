@@ -1,35 +1,40 @@
-import React, { useEffect } from 'react';
+
+import React from 'react';
 import { Commit, AIAnalysis } from '../types.ts';
 import { Icons } from '../constants.tsx';
+import { AnalysisStep } from '../hooks/useGitRepo.ts';
 
 interface CommitInfoProps {
   commit: Commit | null;
   analysis: AIAnalysis | null;
   loading: boolean;
+  analysisStep: AnalysisStep;
   onAnalyze: () => void;
   selectedModel: string;
   setSelectedModel: (m: string) => void;
 }
 
-// Fix: Import React to resolve the missing namespace 'React' error for React.FC
-const CommitInfo: React.FC<CommitInfoProps> = ({ 
-  commit, analysis, loading, onAnalyze, selectedModel, setSelectedModel 
-}) => {
-  // Debug effect to track state changes in the UI component
-  useEffect(() => {
-    if (analysis) {
-      console.log("[CommitInfo] Received analysis data update:", analysis);
-    }
-  }, [analysis]);
+const STEP_LABELS: Record<AnalysisStep, string> = {
+  idle: 'Forensic Audit Standby',
+  hydrating: 'Hydrating Patch Data...',
+  mapping: 'Mapping Logic Deltas...',
+  thinking: 'Allocating 32k Thinking Budget...',
+  synthesizing: 'Synthesizing Report...',
+  done: 'Audit Complete',
+  error: 'Forensic System Failure'
+};
 
+const CommitInfo: React.FC<CommitInfoProps> = ({ 
+  commit, analysis, loading, analysisStep, onAnalyze, selectedModel, setSelectedModel 
+}) => {
   if (!commit) return null;
 
   const currentCategory = analysis?.category || commit.category || 'logic';
   const isHeuristic = analysis?.summary.toLowerCase().includes('heuristic');
 
   const models = [
-    { id: 'auto', name: 'Auto Optimized' },
-    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro' },
+    { id: 'auto', name: 'Gemini 3 Pro (Deep)' },
+    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (32k)' },
     { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
   ];
@@ -165,32 +170,6 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
                 </div>
               )}
 
-              {analysis.fixStrategies && analysis.fixStrategies.length > 0 && (
-                <div className="p-5 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-5">
-                  <h4 className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Remediation Protocol</h4>
-                  <div className="space-y-3">
-                    {analysis.fixStrategies.map((strategy, i) => (
-                      <div key={i} className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors cursor-default">
-                        <span className="text-blue-500 font-mono text-xs font-black">0{i + 1}</span>
-                        <p className="text-[11px] text-slate-300 font-medium leading-relaxed">{strategy}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {analysis.dangerReasoning && (
-                <div className="p-5 rounded-3xl border border-red-500/20 bg-red-500/5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Icons.Alert className="w-4 h-4 text-red-500" />
-                    <h4 className="text-[9px] font-black uppercase text-red-500 tracking-widest">Primary Danger Reasoning</h4>
-                  </div>
-                  <div className="p-4 bg-black/60 rounded-2xl border border-red-500/10">
-                    <p className="text-[11px] text-slate-200 font-mono italic leading-relaxed">"{analysis.dangerReasoning}"</p>
-                  </div>
-                </div>
-              )}
-
               <div className="space-y-3 pt-4 border-t border-white/5">
                 <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Technical Intent</h4>
                 <p className="text-xs text-slate-400 leading-relaxed font-medium px-1">{analysis.summary}</p>
@@ -208,11 +187,23 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
               >
                 <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-500" />
                 <span className="relative z-10 flex items-center justify-center gap-3">
-                  {loading ? 'Crunching Audit...' : 'Run Forensic Audit'}
+                  {loading ? 'Crunching Deep Audit...' : 'Run Forensic Audit'}
                 </span>
               </button>
               {loading && (
-                <p className="mt-6 text-[9px] text-slate-500 uppercase font-black animate-pulse tracking-widest">Allocating Gemini Thinking Budget...</p>
+                <div className="mt-6 flex flex-col items-center gap-2">
+                  <div className="flex gap-1">
+                    {[0,1,2].map(i => <div key={i} className="w-1 h-1 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />)}
+                  </div>
+                  <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">
+                    {STEP_LABELS[analysisStep]}
+                  </p>
+                  {selectedModel.includes('pro') && (
+                    <span className="text-[7px] text-amber-500/60 font-black uppercase tracking-[0.2em] animate-pulse">
+                      High-End Reasoning Active
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
